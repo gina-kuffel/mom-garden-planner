@@ -7,53 +7,9 @@
 
 An interactive garden bed planning tool for a brick split-level home in Arlington Heights, IL (Zone 6a/6b). The goal is to visualize plant placement over actual photos of the house before committing to a design.
 
-**Live app**: https://mom-garden-planner.vercel.app/
-**Repo**: https://github.com/gina-kuffel/mom-garden-planner
-
----
-
-## ⭐ Standard Setup for New Personal Projects
-
-This section documents the correct setup pattern for all future personal projects. Follow this every time.
-
-### The Two-Account Problem
-
-The developer has two GitHub accounts:
-- `gina-kuffel` — personal primary account, authenticated in Mac Keychain, connected to Vercel
-- `kuffelgr` — secondary account, authenticated as Claude's GitHub connector
-
-These two accounts being separate causes friction if not handled correctly from the start.
-
-### ✅ Correct Setup Pattern (use this every time)
-
-**Step 1 — Create the repo under `gina-kuffel`**
-Log into GitHub as `gina-kuffel` and create the repo at github.com/new. Make it public. Do NOT initialize with a README.
-
-**Step 2 — Add `kuffelgr` as a collaborator with Write access**
-Go to: `https://github.com/gina-kuffel/REPO-NAME/settings/access`
-- Click **Add people**
-- Search for `kuffelgr`
-- Set role to **Write**
-- Click **Add kuffelgr to this repository**
-
-Then log into GitHub as `kuffelgr` and accept the invitation at github.com/notifications (or via email).
-
-**Step 3 — Claude pushes directly to `gina-kuffel/REPO-NAME`**
-With `kuffelgr` as a collaborator, Claude's connector can now push commits directly to the repo under `gina-kuffel`. No manual git pull/push required.
-
-**Step 4 — Connect Vercel to `gina-kuffel/REPO-NAME`**
-Go to vercel.com → New Project → paste `https://github.com/gina-kuffel/REPO-NAME` directly into the import field (don't use the account dropdown, which may show the wrong account). Every commit Claude pushes will now auto-deploy.
-
-### Why This Works
-
-Vercel is connected to `gina-kuffel`, so it watches repos under that account for push events and auto-deploys. Claude's connector is `kuffelgr`, but with Write collaborator access to a `gina-kuffel` repo, Claude can commit directly. Result: Claude commits → Vercel auto-deploys → no manual steps needed.
-
-### What NOT to Do
-
-- ❌ Don't create the repo under `kuffelgr` — Vercel won't auto-deploy from it
-- ❌ Don't try to transfer a repo from `kuffelgr` to `gina-kuffel` — GitHub blocks it if a fork already exists under that name
-- ❌ Don't rely on `git push gina main` as a manual workaround — it works but it's friction
-- ❌ Don't connect Vercel by pasting a `kuffelgr` URL — it deploys once but has no webhook for auto-deploy
+**Live app**: https://mom-garden-planner.vercel.app/  
+**Primary repo**: https://github.com/kuffelgr/mom-garden-planner  
+**Vercel-connected repo (fork)**: https://github.com/gina-kuffel/mom-garden-planner
 
 ---
 
@@ -72,11 +28,40 @@ We started with a plain HTML canvas approach and spent significant time trying t
 
 ### Why Vite instead of Create React App
 
-CRA is officially deprecated. Vite is the current standard, builds faster, and Vercel handles it identically. The deploy experience is the same from the user's perspective.
+CRA is officially deprecated. Vite is the current standard, builds faster, and Vercel handles it identically.
 
-### Wikimedia Image Proxy
+### Photo Storage: Vercel Blob
 
-Wikimedia blocks hotlink requests from unknown domains. Plant photos are routed through a Vercel serverless function at `/api/image-proxy` which fetches images server-side with a `Referer: https://en.wikipedia.org/` header, bypassing the hotlink protection. Images are cached for 24 hours.
+Reference photos are stored in Vercel Blob (not committed to the git repo). Blob store is attached to the `mom-garden-planner` Vercel project under the `gina-kuffel` account.
+
+| File | Vercel Blob URL |
+|---|---|
+| `bedA.jpeg` | `https://sg4c4d4k3ddwfv8d.public.blob.vercel-storage.com/bedA.jpeg` |
+| `bedB.jpeg` | `https://sg4c4d4k3ddwfv8d.public.blob.vercel-storage.com/bedB.jpeg` |
+| `whole-home.jpeg` | `https://sg4c4d4k3ddwfv8d.public.blob.vercel-storage.com/whole-home.jpeg` |
+
+To add or replace photos: `vercel blob put <filename>` from the repo root (must be linked to the `gina-kuffel` Vercel project via `vercel link`).
+
+### Deployment: Vercel via gina-kuffel
+
+Vercel is connected to the `gina-kuffel` fork. Auto-deploy fires on every commit to `main` on `gina-kuffel/mom-garden-planner`. Claude's GitHub connector writes to `kuffelgr/mom-garden-planner` — the push to `gina-kuffel` is handled by Claude directly via the GitHub API as a second commit to keep both repos in sync.
+
+---
+
+## GitHub / Vercel Account Split
+
+| Item | Detail |
+|---|---|
+| Account 1 | `gina-kuffel` — personal primary account, authenticated in Mac Keychain |
+| Account 2 | `kuffelgr` — second account |
+| Claude GitHub connector | Authenticated as `kuffelgr` — all tool-based commits go here |
+| Vercel project | Under `gina-kuffel` — auto-deploy fires on commits to that fork |
+| Deploy workflow | Claude commits to `kuffelgr` repo, then separately commits same content to `gina-kuffel` fork to trigger Vercel |
+| Vercel Blob | Attached to `gina-kuffel` Vercel project; upload via `vercel blob put` after `vercel link` |
+| PAT | Created under `kuffelgr`, named `mom-garden`, repo scope |
+| SSH | Not configured — HTTPS with macOS Keychain |
+
+**Long-term recommendation**: consolidate to `gina-kuffel` as the single personal account, reconnect Claude connector, and delete `kuffelgr`.
 
 ---
 
@@ -85,92 +70,116 @@ Wikimedia blocks hotlink requests from unknown domains. Plant photos are routed 
 ### Session 1 — March 2026
 
 **Phase 1: Canvas prototype (abandoned)**
-- Built a single-file HTML/JS canvas app
-- Attempted schematic house background drawing — rejected as too cartoonish
-- Attempted photo overlay with pre-calibrated bed regions — rejected, bed outline never landed correctly
-- Attempted plant photo rendering via canvas — blocked by CORS
-- Iterated through ~8 versions of bed Y-coordinate calibration, never got it right
+- Built single-file HTML/JS canvas app
+- Attempted schematic house background — rejected
+- Attempted photo overlay with pre-calibrated bed regions — rejected
+- Attempted plant photos via canvas — CORS blocked
+- Iterated through ~8 versions of coordinate calibration, never succeeded
 
-**Phase 2: React app (current)**
+**Phase 2: React + Vite app**
+- `src/data/plants.js` — plant catalog (see current catalog below)
+- `src/App.jsx` — main app with sidebar palette, click-to-place, drag-to-reposition, labels toggle, clear all
+- `src/PlantDetail.jsx` — detail panel with bloom calendar, care info, photo
 
-`src/data/plants.js` — master plant catalog with 9 plants:
-- Cherry Bomb Ninebark (*Physocarpus opulifolius* 'Jefam') — 5′w × 5′h, shrub
-- Incrediball Hydrangea (*Hydrangea arborescens* 'Abetwo') — 5′w × 4′h, shrub
-- Little Lime Hydrangea (*Hydrangea paniculata* 'Jane') — 4′w × 5′h, shrub
-- Walker's Low Catmint (*Nepeta x faassenii* 'Walker's Low') — 3′w × 2′h, perennial
-- Rozanne Geranium (*Geranium* 'Gerwat') — 3′w × 1.5′h, perennial
-- Goldsturm Black-Eyed Susan (*Rudbeckia fulgida* 'Goldsturm') — 2′w × 2.5′h, perennial
-- Karl Foerster Grass (*Calamagrostis x acutiflora* 'Karl Foerster') — 2′w × 5′h, grass
-- Prairie Dropseed (*Sporobolus heterolepis*) — 2.5′w × 2′h, grass
-- Autumn Fire Sedum (*Hylotelephium* 'Herbstfreude') — 2′w × 2′h, perennial ⚠️ clay caution
+### Session 2 — April 2026
 
-`src/App.jsx` — main application:
-- Sidebar plant palette with circular photo thumbnails
-- Click plant to select, click photo to place
-- Drag to reposition placed plants
-- ✕ button to remove individual plants
-- Labels ON/OFF toggle
-- Clear all button
-- Contextual toolbar hint text
-
-`src/PlantDetail.jsx` — detail panel:
-- Shows when a plant is clicked in the sidebar
-- Full photo, botanical name, mature size, sun/water, zone, clay tolerance, deer resistance
-- 12-month bloom calendar bar
-
-`api/image-proxy.js` — Vercel serverless function:
-- Proxies Wikimedia image requests to bypass hotlink protection
-- Whitelists only `upload.wikimedia.org` and `commons.wikimedia.org`
-- Caches responses for 24 hours
+- **Vercel Blob photo storage** — uploaded bedA.jpeg, bedB.jpeg, whole-home.jpeg to Vercel Blob; removed dependency on local files or public/ folder
+- **Default photo on load** — app now opens with Bed A loaded automatically; no longer requires manual photo upload
+- **Bed view switcher** — toolbar now has three blue toggle buttons (Bed A — Home Front, Bed B — Garage Front, Whole Home); switching clears placed plants
+- **Cover image mode** — changed `objectFit` from `contain` to `cover` so photos fill the canvas edge-to-edge with no black bars; `objectPosition: center` ensures centered crop
 
 ---
 
-## Plant Selection Rationale
+## Finalized Plant Plan
 
-All plants confirmed Zone 6a/6b hardy. All selected for:
-- Low to moderate maintenance
-- Clay soil tolerance (noted where amendment needed)
-- Four-season interest
-- Deer resistance (moderate to high for all)
-- Appropriate scale for a residential foundation planting
+> ⚠️ Note: `src/data/plants.js` currently still contains the **original exploratory plant list** (Ninebark, Catmint, Rudbeckia, etc.). It has not yet been updated to reflect the finalized plan below. This is the highest-priority code update remaining.
 
-### Front Main Bed (large brick face, basement window centered)
-Approx. 24′ wide × 4′ deep, full sun to part sun
+### Bed B — Garage Front (~30ft × 4ft, north-facing, more open sky)
 
-| Plant | Role | Notes |
-|---|---|---|
-| Cherry Bomb Ninebark | Left anchor shrub | Bold burgundy foliage, season-long contrast |
-| Incrediball Hydrangea | Left-center shrub | Large white blooms July–Sept |
-| Karl Foerster Grass | Vertical punctuation × 2 | Flanking window, winter structure |
-| Walker's Low Catmint | Front edge drift | Long blooming, deer resistant |
-| Rozanne Geranium | Front edge right | Blooms May–frost |
-| Little Lime Hydrangea | Right-center shrub | Lime-to-pink color shift |
-| Goldsturm Black-Eyed Susan | Right side mid-border | Golden yellow, feeds birds in winter |
+**Shrubs:**
 
-### Side Bed (siding face, single window, currently bare)
-Approx. 18′ wide × 3′ deep, full sun
+| Plant | Cultivar | Count | Size | Notes |
+|---|---|---|---|---|
+| Virginia Sweetspire | *Itea virginica* 'Henry's Garnet' | 3 | 5′w × 3′h | Fall color, fragrant white racemes, clay tolerant |
+| Oakleaf Hydrangea | *Hydrangea quercifolia* 'Pee Wee' | 1 | 4′w × 4′h | Entry anchor, exfoliating bark, 4-season interest |
+| Arrowwood Viburnum | *Viburnum dentatum* 'Blue Muffin' | 3 | 5′w × 5′h | Native, blue berries, excellent fall color |
+| Summersweet | *Clethra alnifolia* 'Hummingbird' | 2 | 3′w × 3′h | Fragrant, late summer bloom, deer resistant |
 
-| Plant | Role | Notes |
-|---|---|---|
-| Karl Foerster Grass | Left anchor × 2 | Vertical structure against flat siding |
-| Goldsturm Black-Eyed Susan | Mid-bed mass × 3 | Clay tolerant workhorse |
-| Prairie Dropseed | Right side × 2 | Fine-textured native, orange fall color |
-| Walker's Low Catmint | Front edge | Low maintenance lavender drift |
-| Autumn Fire Sedum | Front edge right | Late color; amend soil with grit |
+**Perennials:**
+
+| Plant | Cultivar | Count | Size | Notes |
+|---|---|---|---|---|
+| Astilbe | *Astilbe* 'Fanal' | 5 | 2′w × 2′h | Deep red plumes June–July |
+| Coral Bells | *Heuchera* 'Palace Purple' | 5 | 1.5′w × 1.5′h | Deep burgundy foliage |
+| Bleeding Heart | *Lamprocapnos spectabilis* 'Gold Heart' | 4 | 2′w × 2′h | Spring bloom, gold foliage |
+| Native Ferns | *Matteuccia struthiopteris* (Ostrich Fern) | ~18 | 3′w × 4′h | Mass planting, structural fill |
+
+**Total Bed B: ~37 plants, 8 species**
+
+### Bed A — Home Front (~30ft × 2ft, north-facing, shadier, eave overhang, basement window)
+
+Single staggered row of perennials and ground covers:
+
+| Plant | Cultivar | Count | Spacing | Notes |
+|---|---|---|---|---|
+| Lungwort | *Pulmonaria* 'Trevi Fountain' | 5 | 18″ | Blue flowers early spring, spotted foliage |
+| Bleeding Heart | *Lamprocapnos spectabilis* 'Gold Heart' | 5 | 18″ | Shared with Bed B |
+| Coral Bells — Palace Purple | *Heuchera* 'Palace Purple' | 3 | 15″ | Deep burgundy, alternating rhythm |
+| Coral Bells — Caramel | *Heuchera* 'Caramel' | 3 | 15″ | Warm amber, alternating rhythm |
+| Coral Bells — Lime Rickey | *Heuchera* 'Lime Rickey' | 2 | 15″ | Chartreuse, end accents |
+| Wild Ginger | *Asarum canadense* | 6 | 12″ | Native ground cover, deep shade |
+| Bugleweed | *Ajuga reptans* 'Black Scallop' | 8 | 12″ | Purple foliage, spreads to fill |
+
+**Total Bed A: ~32 plants, 5 species**
+
+**Coral Bells alternating pattern**: Palace Purple × 3, Caramel × 3, Lime Rickey × 2 — staggered for visual rhythm against red brick.
+
+---
+
+## Current Plant Catalog in App (`src/data/plants.js`)
+
+> This is the **exploratory list** — predates the finalized plan. Needs to be replaced.
+
+- Cherry Bomb Ninebark (*Physocarpus opulifolius* 'Jefam') — 5′w × 5′h
+- Incrediball Hydrangea (*Hydrangea arborescens* 'Abetwo') — 5′w × 4′h
+- Little Lime Hydrangea (*Hydrangea paniculata* 'Jane') — 4′w × 5′h
+- Walker's Low Catmint (*Nepeta x faassenii* 'Walker's Low') — 3′w × 2′h
+- Rozanne Geranium (*Geranium* 'Gerwat') — 3′w × 1.5′h
+- Goldsturm Black-Eyed Susan (*Rudbeckia fulgida* 'Goldsturm') — 2′w × 2.5′h
+- Karl Foerster Grass (*Calamagrostis x acutiflora* 'Karl Foerster') — 2′w × 5′h
+- Prairie Dropseed (*Sporobolus heterolepis*) — 2.5′w × 2′h
+- Autumn Fire Sedum (*Hylotelephium* 'Herbstfreude') — 2′w × 2′h ⚠️ clay caution
 
 ---
 
 ## Reference Photos
 
-Three photos taken March 2026, early spring (no foliage on deciduous trees):
+Three photos taken March 2026 (early spring, no deciduous foliage).
 
-| File | View | Notes |
+| File | View | Orientation |
 |---|---|---|
-| `bedA.jpeg` | Front bed close-up | Portrait orientation, mulch strip visible at base of brick |
-| `wholehome.jpeg` | Full street view | Shows complete property, front and side |
-| `bedB.jpeg` | Side bed | Siding face, single window, currently bare dirt/snow |
+| `bedA.jpeg` | Front bed close-up | Portrait, shows Bed A mulch strip at base of brick |
+| `bedB.jpeg` | Garage/side bed | Portrait, siding face, single window |
+| `whole-home.jpeg` | Full street view | Landscape, shows complete property |
 
-Photos are stored locally — not committed to the repo (too large, not needed for deployment).
+All stored in Vercel Blob (see URLs above). Not committed to git.
+
+---
+
+## Soil Prep Plan (Pre-Planting, Memorial Day Weekend)
+
+- University of Illinois Extension soil test (~$20) before amending
+- Till to 12 inches
+- Incorporate 4 inches of compost
+- Mycorrhizal inoculant at planting
+- Target planting window: Memorial Day weekend through early June
+
+---
+
+## Local Nursery Sources
+
+- **Lurvey Garden Center** — Des Plaines, IL (primary)
+- **The Growing Place** — Naperville / Aurora, IL (secondary)
 
 ---
 
@@ -184,24 +193,27 @@ npm run dev
 # → http://localhost:5173
 ```
 
-To pull latest changes committed by Claude:
+To pull latest Claude changes locally:
 ```bash
-git pull
-# then refresh browser
+git pull origin main
 ```
 
 ---
 
-## Next Steps / Backlog
+## Backlog
 
-- [ ] Plant size slider — adjust circle size per placed plant
-- [ ] Season view — toggle to show which plants are blooming in a selected month
-- [ ] Save/restore layout — persist placed plants to localStorage
-- [ ] Multiple bed views — switch between front and side bed reference photos
-- [ ] Print/export — save the overlay as an image for sharing with mom
-- [ ] Nursery sourcing — add local IL nursery recommendations per plant
-- [ ] Soil amendment notes — inline callouts when a clay-sensitive plant is placed
-- [ ] Mobile support — touch drag for iPad use at the nursery
+- [ ] **Update `plants.js`** to finalized plant plan (Bed A + Bed B species) — highest priority
+- [ ] **Bed-specific plant filtering** — sidebar shows only plants assigned to the active bed view
+- [ ] **Plant count indicator** — show placed count vs. target quantity per species
+- [ ] **Plant size slider** — adjust circle size per placed plant
+- [ ] **Season view** — toggle to show which plants are blooming in a selected month
+- [ ] **Save/restore layout** — persist placed plants to localStorage
+- [ ] **Print/export** — save overlay as image for sharing
+- [ ] **Mobile/touch support** — touch drag for iPad use at the nursery
+- [ ] **Soil amendment callouts** — inline warnings when clay-sensitive plant is placed
+- [x] ~~Multiple bed views~~ — done (Bed A / Bed B / Whole Home switcher)
+- [x] ~~Default photo on load~~ — done (Bed A loads automatically)
+- [x] ~~Photo storage~~ — done (Vercel Blob)
 
 ---
 
