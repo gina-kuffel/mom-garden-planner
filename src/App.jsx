@@ -2,17 +2,52 @@ import { useState, useRef, useEffect } from 'react'
 import plants from './data/plants'
 import PlantDetail from './PlantDetail'
 
+const BED_VIEWS = [
+  {
+    key: 'bedA',
+    label: 'Bed A — Home Front',
+    url: 'https://sg4c4d4k3ddwfv8d.public.blob.vercel-storage.com/bedA.jpeg',
+  },
+  {
+    key: 'bedB',
+    label: 'Bed B — Garage Front',
+    url: 'https://sg4c4d4k3ddwfv8d.public.blob.vercel-storage.com/bedB.jpeg',
+  },
+  {
+    key: 'whole',
+    label: 'Whole Home',
+    url: 'https://sg4c4d4k3ddwfv8d.public.blob.vercel-storage.com/whole-home.jpeg',
+  },
+]
+
+function loadBedPhoto(url) {
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.onload = () => resolve({ url, naturalW: img.naturalWidth, naturalH: img.naturalHeight })
+    img.onerror = () => resolve({ url, naturalW: 1200, naturalH: 900 })
+    img.src = url
+  })
+}
+
 export default function App() {
-  const [photo, setPhoto]             = useState(null)
-  const [placed, setPlaced]           = useState([])
-  const [selected, setSelected]       = useState(null)
+  const [photo, setPhoto]               = useState(null)
+  const [activeView, setActiveView]     = useState('bedA')
+  const [placed, setPlaced]             = useState([])
+  const [selected, setSelected]         = useState(null)
   const [activeDetail, setActiveDetail] = useState(null)
-  const [showLabels, setShowLabels]   = useState(true)
-  const [overlaySize, setOverlaySize] = useState({ w: 0, h: 0 })
+  const [showLabels, setShowLabels]     = useState(true)
+  const [overlaySize, setOverlaySize]   = useState({ w: 0, h: 0 })
   const overlayRef = useRef(null)
   const dragRef    = useRef(null)
   const nextId     = useRef(1)
 
+  // Load default photo (Bed A) on first mount
+  useEffect(() => {
+    const defaultView = BED_VIEWS.find(v => v.key === 'bedA')
+    loadBedPhoto(defaultView.url).then(setPhoto)
+  }, [])
+
+  // Track overlay size
   useEffect(() => {
     if (!overlayRef.current) return
     const obs = new ResizeObserver(entries => {
@@ -23,12 +58,24 @@ export default function App() {
     return () => obs.disconnect()
   }, [photo])
 
+  function switchView(viewKey) {
+    const view = BED_VIEWS.find(v => v.key === viewKey)
+    if (!view) return
+    setActiveView(viewKey)
+    loadBedPhoto(view.url).then(setPhoto)
+    setPlaced([])
+    setSelected(null)
+  }
+
   function handlePhotoUpload(e) {
     const file = e.target.files[0]
     if (!file) return
     const url = URL.createObjectURL(file)
     const img = new Image()
-    img.onload = () => setPhoto({ url, naturalW: img.naturalWidth, naturalH: img.naturalHeight })
+    img.onload = () => {
+      setPhoto({ url, naturalW: img.naturalWidth, naturalH: img.naturalHeight })
+      setActiveView(null)
+    }
     img.src = url
   }
 
@@ -92,12 +139,13 @@ export default function App() {
     pSci:      { fontSize: 10, color: '#8a9a68', fontStyle: 'italic' },
     pMeta:     { fontSize: 10, color: '#aab888' },
     main:      { flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' },
-    toolbar:   { display: 'flex', gap: 8, padding: '10px 16px', background: '#fff', borderBottom: '1px solid #ddd8cc', alignItems: 'center', flexShrink: 0 },
+    toolbar:   { display: 'flex', gap: 8, padding: '10px 16px', background: '#fff', borderBottom: '1px solid #ddd8cc', alignItems: 'center', flexShrink: 0, flexWrap: 'wrap' },
     btn:       (on) => ({ padding: '5px 12px', borderRadius: 6, fontSize: 12, fontWeight: 500, border: `1px solid ${on ? '#88b040' : '#c8c0a8'}`, background: on ? '#d8eeb8' : '#fff', color: on ? '#2a4010' : '#3a4a28', cursor: 'pointer' }),
+    viewBtn:   (on) => ({ padding: '5px 12px', borderRadius: 6, fontSize: 12, fontWeight: 500, border: `1px solid ${on ? '#5577cc' : '#c8c0a8'}`, background: on ? '#dde8ff' : '#fff', color: on ? '#1a2a6a' : '#3a4a28', cursor: 'pointer' }),
     uploadBtn: { padding: '5px 12px', borderRadius: 6, fontSize: 12, fontWeight: 500, border: '1px solid #c8c0a8', background: '#fff', color: '#3a4a28', cursor: 'pointer' },
+    divider:   { width: 1, height: 22, background: '#e0dbd0', margin: '0 2px' },
     hint:      { fontSize: 11, color: '#aab888', marginLeft: 'auto' },
     canvasArea:{ flex: 1, overflow: 'hidden', position: 'relative', background: '#1a1a18' },
-    prompt:    { position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12 },
     overlay:   { position: 'relative', width: '100%', height: '100%', cursor: selected ? 'crosshair' : 'default' },
     photoImg:  { width: '100%', height: '100%', objectFit: 'contain', display: 'block', userSelect: 'none' },
     placedWrap:{ position: 'absolute', inset: 0, pointerEvents: 'none' },
@@ -128,10 +176,21 @@ export default function App() {
 
       <div style={s.main}>
         <div style={s.toolbar}>
+          {BED_VIEWS.map(v => (
+            <button key={v.key} style={s.viewBtn(activeView === v.key)} onClick={() => switchView(v.key)}>
+              {v.label}
+            </button>
+          ))}
+
+          <div style={s.divider} />
+
           <label style={s.uploadBtn}>
-            📷 Load Photo
+            📷 Custom Photo
             <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handlePhotoUpload} />
           </label>
+
+          <div style={s.divider} />
+
           <button style={s.btn(showLabels)} onClick={() => setShowLabels(v => !v)}>
             Labels {showLabels ? 'ON' : 'OFF'}
           </button>
@@ -145,20 +204,14 @@ export default function App() {
             {selected
               ? `Click the photo to place ${plants.find(p => p.id === selected)?.commonName}`
               : photo ? 'Select a plant from the sidebar, then click the photo to place it'
-              : 'Load a reference photo to get started'}
+              : 'Loading photo…'}
           </span>
         </div>
 
         <div style={s.canvasArea}>
           {!photo ? (
-            <div style={s.prompt}>
-              <div style={{ fontSize: 48, opacity: 0.4 }}>📸</div>
-              <div style={{ fontSize: 15, color: '#888' }}>Load a reference photo</div>
-              <div style={{ fontSize: 12, color: '#aaa' }}>Use bedA.jpeg or bedB.jpeg from your photos folder</div>
-              <label style={{ ...s.uploadBtn, cursor: 'pointer' }}>
-                Choose Photo
-                <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handlePhotoUpload} />
-              </label>
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ fontSize: 14, color: '#888' }}>Loading photo…</div>
             </div>
           ) : (
             <div style={s.overlay} ref={overlayRef} onClick={handleOverlayClick}>
