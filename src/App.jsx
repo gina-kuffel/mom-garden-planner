@@ -145,9 +145,9 @@ export default function App() {
     uploadBtn: { padding: '5px 12px', borderRadius: 6, fontSize: 12, fontWeight: 500, border: '1px solid #c8c0a8', background: '#fff', color: '#3a4a28', cursor: 'pointer' },
     divider:   { width: 1, height: 22, background: '#e0dbd0', margin: '0 2px' },
     hint:      { fontSize: 11, color: '#aab888', marginLeft: 'auto' },
-    canvasArea:{ flex: 1, overflow: 'hidden', position: 'relative', background: '#1a1a18' },
+    canvasArea:{ flex: 1, overflow: 'hidden', position: 'relative', background: '#e8e4dc' },
     overlay:   { position: 'relative', width: '100%', height: '100%', cursor: selected ? 'crosshair' : 'default' },
-    photoImg:  { width: '100%', height: '100%', objectFit: 'contain', display: 'block', userSelect: 'none' },
+    photoImg:  { width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center', display: 'block', userSelect: 'none' },
     placedWrap:{ position: 'absolute', inset: 0, pointerEvents: 'none' },
   }
 
