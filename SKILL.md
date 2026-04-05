@@ -8,8 +8,7 @@
 An interactive garden bed planning tool for a brick split-level home in Arlington Heights, IL (Zone 6a/6b). The goal is to visualize plant placement over actual photos of the house before committing to a design.
 
 **Live app**: https://mom-garden-planner.vercel.app/  
-**Primary repo**: https://github.com/kuffelgr/mom-garden-planner  
-**Vercel-connected repo (fork)**: https://github.com/gina-kuffel/mom-garden-planner
+**Repo**: https://github.com/gina-kuffel/mom-garden-planner
 
 ---
 
@@ -40,28 +39,26 @@ Reference photos are stored in Vercel Blob (not committed to the git repo). Blob
 | `bedB.jpeg` | `https://sg4c4d4k3ddwfv8d.public.blob.vercel-storage.com/bedB.jpeg` |
 | `whole-home.jpeg` | `https://sg4c4d4k3ddwfv8d.public.blob.vercel-storage.com/whole-home.jpeg` |
 
-To add or replace photos: `vercel blob put <filename>` from the repo root (must be linked to the `gina-kuffel` Vercel project via `vercel link`).
+To add or replace photos: `vercel blob put <filename>` from the repo root (must be linked via `vercel link` first).
 
-### Deployment: Vercel via gina-kuffel
+### Deployment: Vercel
 
-Vercel is connected to the `gina-kuffel` fork. Auto-deploy fires on every commit to `main` on `gina-kuffel/mom-garden-planner`. Claude's GitHub connector writes to `kuffelgr/mom-garden-planner` — the push to `gina-kuffel` is handled by Claude directly via the GitHub API as a second commit to keep both repos in sync.
+Vercel is connected to `gina-kuffel/mom-garden-planner`. Every commit to `main` triggers an automatic redeploy. No manual steps needed.
+
+Claude's GitHub connector is authenticated as `kuffelgr`, which has Write collaborator access to the `gina-kuffel` repo. Claude commits directly to `gina-kuffel/mom-garden-planner` — one repo, one deploy, no sync required.
 
 ---
 
-## GitHub / Vercel Account Split
+## GitHub / Vercel Setup
 
 | Item | Detail |
 |---|---|
-| Account 1 | `gina-kuffel` — personal primary account, authenticated in Mac Keychain |
-| Account 2 | `kuffelgr` — second account |
-| Claude GitHub connector | Authenticated as `kuffelgr` — all tool-based commits go here |
-| Vercel project | Under `gina-kuffel` — auto-deploy fires on commits to that fork |
-| Deploy workflow | Claude commits to `kuffelgr` repo, then separately commits same content to `gina-kuffel` fork to trigger Vercel |
-| Vercel Blob | Attached to `gina-kuffel` Vercel project; upload via `vercel blob put` after `vercel link` |
-| PAT | Created under `kuffelgr`, named `mom-garden`, repo scope |
+| Canonical repo | `gina-kuffel/mom-garden-planner` — sole repo, personal account |
+| Claude GitHub connector | Authenticated as `kuffelgr` — has Write collaborator access to `gina-kuffel` repo |
+| Vercel project | Connected to `gina-kuffel/mom-garden-planner` — auto-deploys on every push |
+| Vercel Blob | Attached to this Vercel project; upload via `vercel blob put` after `vercel link` |
 | SSH | Not configured — HTTPS with macOS Keychain |
-
-**Long-term recommendation**: consolidate to `gina-kuffel` as the single personal account, reconnect Claude connector, and delete `kuffelgr`.
+| Previous secondary repo | `kuffelgr/mom-garden-planner` — **deleted April 2026**, no longer exists |
 
 ---
 
@@ -85,8 +82,9 @@ Vercel is connected to the `gina-kuffel` fork. Auto-deploy fires on every commit
 
 - **Vercel Blob photo storage** — uploaded bedA.jpeg, bedB.jpeg, whole-home.jpeg to Vercel Blob; removed dependency on local files or public/ folder
 - **Default photo on load** — app now opens with Bed A loaded automatically; no longer requires manual photo upload
-- **Bed view switcher** — toolbar now has three blue toggle buttons (Bed A — Home Front, Bed B — Garage Front, Whole Home); switching clears placed plants
-- **Cover image mode** — changed `objectFit` from `contain` to `cover` so photos fill the canvas edge-to-edge with no black bars; `objectPosition: center` ensures centered crop
+- **Bed view switcher** — toolbar has three blue toggle buttons (Bed A — Home Front, Bed B — Garage Front, Whole Home); switching clears placed plants
+- **Cover image mode** — `objectFit: cover` so photos fill the canvas edge-to-edge with no black bars
+- **Repo consolidation** — deleted `kuffelgr/mom-garden-planner`; `gina-kuffel/mom-garden-planner` is now the sole canonical repo; `kuffelgr` added as Write collaborator
 
 ---
 
@@ -214,6 +212,7 @@ git pull origin main
 - [x] ~~Multiple bed views~~ — done (Bed A / Bed B / Whole Home switcher)
 - [x] ~~Default photo on load~~ — done (Bed A loads automatically)
 - [x] ~~Photo storage~~ — done (Vercel Blob)
+- [x] ~~Repo consolidation~~ — done (`gina-kuffel` is sole repo, `kuffelgr` repo deleted)
 
 ---
 
