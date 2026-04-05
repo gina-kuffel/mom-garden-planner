@@ -10,8 +10,8 @@ const BED_VIEWS = [
     cropTop: 0.22,
     cropBot: 0.48,
     bedWidthFt: 30,
-    // x/y calibrated from real clicks on the mulch strip — April 2026
     defaultLayout: [
+      // x/y calibrated from real clicks on the mulch strip — April 2026
       { plantId: 'walker-low-catmint',  x: 0.229, y: 0.485 },
       { plantId: 'rozanne-geranium',    x: 0.303, y: 0.483 },
       { plantId: 'walker-low-catmint',  x: 0.375, y: 0.491 },
@@ -30,13 +30,11 @@ const BED_VIEWS = [
     cropBot: 0.65,
     bedWidthFt: 30,
     defaultLayout: [
-      // Back row: shrubs against foundation
       { plantId: 'cherry-bomb-ninebark',  x: 0.10, y: 0.48 },
       { plantId: 'incrediball-hydrangea', x: 0.27, y: 0.46 },
       { plantId: 'karl-foerster-grass',   x: 0.44, y: 0.47 },
       { plantId: 'little-lime-hydrangea', x: 0.61, y: 0.46 },
       { plantId: 'karl-foerster-grass',   x: 0.78, y: 0.47 },
-      // Front row: perennials toward lawn
       { plantId: 'walker-low-catmint',    x: 0.11, y: 0.65 },
       { plantId: 'black-eyed-susan',      x: 0.25, y: 0.64 },
       { plantId: 'black-eyed-susan',      x: 0.38, y: 0.65 },
@@ -140,7 +138,10 @@ export default function App() {
     setPlaced(prev => prev.filter(i => i.id !== itemId))
   }
 
-  const pxPerFoot = overlaySize.w / viewDef.bedWidthFt
+  // Scale: viewport width / bedWidthFt gives px-per-foot.
+  // Multiply by 0.55 so a mature 3ft perennial is ~55px — readable but not overwhelming.
+  const pxPerFoot = (overlaySize.w / viewDef.bedWidthFt) * 0.55
+
   const cropCenterPct = ((viewDef.cropTop + viewDef.cropBot) / 2 * 100).toFixed(1)
   const imgStyle = {
     width: '100%', height: '100%',
@@ -259,7 +260,7 @@ function PlantThumb({ plant }) {
 }
 
 function PlacedPlant({ item, plant, showLabel, pxPerFoot, onDragStart, onRemove }) {
-  const sizePx = Math.max(20, Math.round(item.size * pxPerFoot))
+  const sizePx = Math.max(16, Math.round(item.size * pxPerFoot))
   return (
     <div
       style={{
@@ -268,7 +269,8 @@ function PlacedPlant({ item, plant, showLabel, pxPerFoot, onDragStart, onRemove 
         top:  `${item.y * 100}%`,
         width: sizePx,
         height: sizePx,
-        transform: 'translate(-50%, -50%)',
+        // Anchor bottom of circle to the y coordinate so plants sit ON the bed line
+        transform: 'translate(-50%, -100%)',
         pointerEvents: 'auto',
         cursor: 'grab',
         userSelect: 'none',
