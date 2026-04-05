@@ -2,50 +2,41 @@ import { useState, useRef, useEffect } from 'react'
 import plants from './data/plants'
 import PlantDetail from './PlantDetail'
 
-// Each bed view defines a crop window into the portrait photo (952×1288).
-// cropTop/cropBot are fractions of the FULL image height (0–1).
-// Plants are placed as fractions within that crop window.
-// objectFit: cover + objectPosition lets us show exactly the bed zone, full-width, no black bars.
-
 const BED_VIEWS = [
   {
     key: 'bedA',
     label: 'Bed A — Home Front',
     url: 'https://sg4c4d4k3ddwfv8d.public.blob.vercel-storage.com/bedA.jpeg',
-    // Show from top of brick wall to just below the mulch strip
-    cropTop: 0.22,   // 22% down = top of brick section
-    cropBot: 0.48,   // 48% down = bottom of mulch strip / driveway edge
+    cropTop: 0.22,
+    cropBot: 0.48,
     bedWidthFt: 30,
-    // y=0 is cropTop, y=1 is cropBot within this window
-    // Mulch strip center is at ~(0.41-0.22)/(0.48-0.22) = 0.73 within the window
+    // x/y calibrated from real clicks on the mulch strip — April 2026
     defaultLayout: [
-      { plantId: 'walker-low-catmint',  x: 0.07, y: 0.72 },
-      { plantId: 'rozanne-geranium',    x: 0.19, y: 0.70 },
-      { plantId: 'walker-low-catmint',  x: 0.31, y: 0.72 },
-      { plantId: 'rozanne-geranium',    x: 0.44, y: 0.70 },
-      { plantId: 'black-eyed-susan',    x: 0.57, y: 0.71 },
-      { plantId: 'rozanne-geranium',    x: 0.69, y: 0.70 },
-      { plantId: 'walker-low-catmint',  x: 0.81, y: 0.72 },
-      { plantId: 'autumn-fire-sedum',   x: 0.92, y: 0.71 },
+      { plantId: 'walker-low-catmint',  x: 0.229, y: 0.485 },
+      { plantId: 'rozanne-geranium',    x: 0.303, y: 0.483 },
+      { plantId: 'walker-low-catmint',  x: 0.375, y: 0.491 },
+      { plantId: 'rozanne-geranium',    x: 0.467, y: 0.495 },
+      { plantId: 'black-eyed-susan',    x: 0.557, y: 0.496 },
+      { plantId: 'rozanne-geranium',    x: 0.638, y: 0.495 },
+      { plantId: 'walker-low-catmint',  x: 0.712, y: 0.500 },
+      { plantId: 'autumn-fire-sedum',   x: 0.869, y: 0.502 },
     ],
   },
   {
     key: 'bedB',
     label: 'Bed B — Garage Front',
     url: 'https://sg4c4d4k3ddwfv8d.public.blob.vercel-storage.com/bedB.jpeg',
-    // Show from siding/brick transition down through the bare dirt bed into lawn
-    cropTop: 0.30,   // 30% = just above brick/siding transition
-    cropBot: 0.65,   // 65% = mid-lawn, gives good context
+    cropTop: 0.30,
+    cropBot: 0.65,
     bedWidthFt: 30,
-    // Bed center at ~(0.52-0.30)/(0.65-0.30) = 0.63 within window
     defaultLayout: [
-      // Back row: shrubs against foundation (y~0.50)
+      // Back row: shrubs against foundation
       { plantId: 'cherry-bomb-ninebark',  x: 0.10, y: 0.48 },
       { plantId: 'incrediball-hydrangea', x: 0.27, y: 0.46 },
       { plantId: 'karl-foerster-grass',   x: 0.44, y: 0.47 },
       { plantId: 'little-lime-hydrangea', x: 0.61, y: 0.46 },
       { plantId: 'karl-foerster-grass',   x: 0.78, y: 0.47 },
-      // Front row: perennials toward lawn (y~0.65)
+      // Front row: perennials toward lawn
       { plantId: 'walker-low-catmint',    x: 0.11, y: 0.65 },
       { plantId: 'black-eyed-susan',      x: 0.25, y: 0.64 },
       { plantId: 'black-eyed-susan',      x: 0.38, y: 0.65 },
@@ -149,22 +140,10 @@ export default function App() {
     setPlaced(prev => prev.filter(i => i.id !== itemId))
   }
 
-  // Scale: overlay width represents bedWidthFt feet
   const pxPerFoot = overlaySize.w / viewDef.bedWidthFt
-
-  // CSS trick: show only the crop window of the portrait image, full-width, no black bars.
-  // The image is 952×1288. cropTop/cropBot are fractions of full image height.
-  // We set the container height proportional to (cropBot-cropTop) * photoAspect * containerWidth,
-  // then use objectFit:cover + objectPosition to pan to the right vertical slice.
-  const cropHeight = viewDef.cropBot - viewDef.cropTop
-  const photoAspectH = 1288 / 952   // height/width ratio of source photo
-  // objectPosition: we want to show cropTop..cropBot vertically.
-  // CSS objectPosition Y% means: align Y% of the image with Y% of the container.
-  // The center of our crop window as a % of the full image:
   const cropCenterPct = ((viewDef.cropTop + viewDef.cropBot) / 2 * 100).toFixed(1)
   const imgStyle = {
-    width: '100%',
-    height: '100%',
+    width: '100%', height: '100%',
     objectFit: 'cover',
     objectPosition: `center ${cropCenterPct}%`,
     display: 'block',
@@ -186,15 +165,10 @@ export default function App() {
     toolbar:   { display: 'flex', gap: 8, padding: '10px 16px', background: '#fff', borderBottom: '1px solid #ddd8cc', alignItems: 'center', flexShrink: 0, flexWrap: 'wrap' },
     btn:       (on) => ({ padding: '5px 12px', borderRadius: 6, fontSize: 12, fontWeight: 500, border: `1px solid ${on ? '#88b040' : '#c8c0a8'}`, background: on ? '#d8eeb8' : '#fff', color: on ? '#2a4010' : '#3a4a28', cursor: 'pointer' }),
     viewBtn:   (on) => ({ padding: '5px 12px', borderRadius: 6, fontSize: 12, fontWeight: 500, border: `1px solid ${on ? '#5577cc' : '#c8c0a8'}`, background: on ? '#dde8ff' : '#fff', color: on ? '#1a2a6a' : '#3a4a28', cursor: 'pointer' }),
-    uploadBtn: { padding: '5px 12px', borderRadius: 6, fontSize: 12, fontWeight: 500, border: '1px solid #c8c0a8', background: '#fff', color: '#3a4a28', cursor: 'pointer' },
     divider:   { width: 1, height: 22, background: '#e0dbd0', margin: '0 2px' },
     hint:      { fontSize: 11, color: '#aab888', marginLeft: 'auto' },
     canvasArea:{ flex: 1, overflow: 'hidden', position: 'relative' },
-    overlay:   {
-      position: 'relative', width: '100%', height: '100%',
-      cursor: selected ? 'crosshair' : 'default',
-      overflow: 'hidden',
-    },
+    overlay:   { position: 'relative', width: '100%', height: '100%', cursor: selected ? 'crosshair' : 'default', overflow: 'hidden' },
     placedWrap:{ position: 'absolute', inset: 0, pointerEvents: 'none' },
   }
 
