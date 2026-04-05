@@ -35,7 +35,7 @@ function polyBounds(poly) {
 
 let _id = 1
 function buildLayout(poly, viewDef, w, h) {
-  if (!poly || poly.length < 3) return []
+  if (!poly || poly.length < 3 || w <= 0 || h <= 0) return []
   const pts = poly.map(p => ({ x: p.x * w, y: p.y * h }))
   const xs = pts.map(p => p.x), ys = pts.map(p => p.y)
   const minX = Math.min(...xs), maxX = Math.max(...xs)
@@ -44,7 +44,7 @@ function buildLayout(poly, viewDef, w, h) {
   const maxR = Math.max(6, (polyH / 2) * 0.82)
   const backY  = minY + maxR
   const frontY = maxY - maxR
-  const xPad = (maxX - minX) * 0.02
+  const xPad = (maxX - minX) * 0.04
   const backXs  = evenSpread(viewDef.backRow.length,  minX + xPad, maxX - xPad)
   const frontXs = evenSpread(viewDef.frontRow.length, minX + xPad, maxX - xPad)
   return [
@@ -69,9 +69,10 @@ export default function Planner({ onRetrace }) {
   const zones   = loadZones()
   const poly    = zones[activeView]
 
-  // Image rendered width = container width, height proportional
+  // Image rendered width = container width, height proportional from REAL natural size
+  const imgLoaded = imgSize.w > 0 && imgSize.h > 0
   const renderedW = ctnSize.w
-  const renderedH = imgSize.w > 0 ? Math.round(ctnSize.w * imgSize.h / imgSize.w) : ctnSize.h
+  const renderedH = imgLoaded ? Math.round(ctnSize.w * imgSize.h / imgSize.w) : 0
 
   useEffect(() => {
     if (!ctnRef.current) return
@@ -80,17 +81,18 @@ export default function Planner({ onRetrace }) {
     return () => obs.disconnect()
   }, [])
 
+  // Reset image size measurement whenever we switch views
   useEffect(() => {
     setImgSize({ w: 0, h: 0 })
+    setPlaced([])
   }, [activeView])
 
+  // Rebuild layout only once we have real pixel dimensions for this view
   useEffect(() => {
-    if (renderedW > 0 && renderedH > 0 && poly) {
+    if (imgLoaded && renderedW > 0 && renderedH > 0 && poly) {
       setPlaced(buildLayout(poly, viewDef, renderedW, renderedH))
-    } else {
-      setPlaced([])
     }
-  }, [activeView, renderedW, renderedH])
+  }, [activeView, imgLoaded, renderedW, renderedH])
 
   function onImgLoad(e) {
     setImgSize({ w: e.target.naturalWidth, h: e.target.naturalHeight })
@@ -177,20 +179,20 @@ export default function Planner({ onRetrace }) {
           </span>
         </div>
 
-        {/* Scrollable photo — same rendering as setup: full width, proportional height, NO objectFit */}
+        {/* Scrollable photo — full width, proportional height, NO objectFit */}
         <div ref={ctnRef} style={{ flex: 1, overflow: 'auto', position: 'relative' }}>
-          <div style={{ position: 'relative', width: renderedW, height: renderedH }}>
+          <div style={{ position: 'relative', width: renderedW || '100%', height: renderedH || '100%' }}>
             <img
               ref={imgRef}
               src={viewDef.url}
               alt="Bed"
               onLoad={onImgLoad}
               onClick={handleImgClick}
-              style={{ display: 'block', width: renderedW, height: renderedH, cursor: selected ? 'crosshair' : 'default', userSelect: 'none' }}
+              style={{ display: 'block', width: renderedW || '100%', height: renderedH || undefined, cursor: selected ? 'crosshair' : 'default', userSelect: 'none' }}
               draggable={false}
             />
 
-            {poly && renderedW > 0 && (
+            {poly && imgLoaded && renderedW > 0 && renderedH > 0 && (
               <svg style={{ position: 'absolute', inset: 0, width: renderedW, height: renderedH, pointerEvents: 'none' }}
                 viewBox={`0 0 ${renderedW} ${renderedH}`}>
                 <polygon
@@ -216,7 +218,7 @@ export default function Planner({ onRetrace }) {
                       dangerouslySetInnerHTML={{ __html: plant.svgIcon }} />
                     <button onMouseDown={e => e.stopPropagation()}
                       onClick={e => { e.stopPropagation(); setPlaced(prev => prev.filter(i => i.id !== item.id)) }}
-                      style={{ position: 'absolute', top: 0, right: 0, width: 14, height: 14, borderRadius: '50%', background: 'rgba(0,0,0,0.65)', border: 'none', color: '#fff', fontSize: 8, lineHeight: '14px', textAlign: 'center', cursor: 'pointer', padding: 0 }}>✕</button>
+                      style={{ position: 'absolute', top: 0, right: 0, width: 14, height: 14, borderRadius: '50%', background: 'rgba(0,0,0,0.65)', border: 'none', color: '#fff', fontSize: 8, lineHeight: '14px', textAlign: 'center', cursor: 'pointer', padding: 0, pointerEvents: 'auto' }}>✕</button>
                     {showLabels && (
                       <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: 2, background: 'rgba(255,255,255,0.92)', borderRadius: 3, padding: '1px 4px', fontSize: 8, fontWeight: 600, color: '#1e3408', whiteSpace: 'nowrap', boxShadow: '0 1px 3px rgba(0,0,0,0.25)' }}>
                         {plant.commonName.split(' ').slice(0, 2).join(' ')}
