@@ -2,7 +2,9 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import plants from './data/plants'
 import PlantDetail from './PlantDetail'
 
-const PERSPECTIVE = 0.4
+// Perspective scale: reduce apparent size since plants are viewed from distance
+// 0.22 means a 5ft shrub shows as ~22% of what it would at 1:1 scale
+const PERSPECTIVE = 0.22
 
 const BED_VIEWS = [
   {
@@ -48,30 +50,31 @@ let _id = 1
 function buildLayout(poly, viewDef) {
   if (!poly || poly.length < 3) return []
   const { minX, maxX, minY, maxY } = polyBounds(poly)
-  const pad = 0.012
-  // Back row plants placed at 25% of the polygon height (near foundation)
-  // Front row plants placed at 75% of the polygon height (near bed edge)
-  const backY  = minY + (maxY - minY) * 0.25
-  const frontY = minY + (maxY - minY) * 0.75
-  const backXs  = evenSpread(viewDef.backRow.length,  minX + pad, maxX - pad)
-  const frontXs = evenSpread(viewDef.frontRow.length, minX + pad, maxX - pad)
+  const xPad = (maxX - minX) * 0.04   // 4% padding from left/right edges
+  const ySpan = maxY - minY
+
+  // Place back row at 20% from top of polygon, front row at 75%
+  const backY  = minY + ySpan * 0.20
+  const frontY = minY + ySpan * 0.75
+
+  const backXs  = evenSpread(viewDef.backRow.length,  minX + xPad, maxX - xPad)
+  const frontXs = evenSpread(viewDef.frontRow.length, minX + xPad, maxX - xPad)
+
   return [
     ...viewDef.backRow.map((plantId, i) => ({
       id: _id++, plantId,
-      x: backXs[i],  // already in overlay-fraction space — same coords as polygon
-      y: backY,
+      x: backXs[i], y: backY,
       size: plants.find(p => p.id === plantId)?.matureWidth ?? 3,
     })),
     ...viewDef.frontRow.map((plantId, i) => ({
       id: _id++, plantId,
-      x: frontXs[i],
-      y: frontY,
+      x: frontXs[i], y: frontY,
       size: plants.find(p => p.id === plantId)?.matureWidth ?? 3,
     })),
   ]
 }
 
-const STORAGE_KEY = 'gardenBedPolygons_v2'  // v2 = clears any stale saved polygons
+const STORAGE_KEY = 'gardenBedPolygons_v2'
 function loadPolygons() {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') } catch { return {} }
 }
@@ -93,10 +96,9 @@ export default function App() {
   const overlayRef = useRef(null)
   const dragRef    = useRef(null)
 
-  const viewDef    = BED_VIEWS.find(v => v.key === activeView) ?? BED_VIEWS[0]
+  const viewDef     = BED_VIEWS.find(v => v.key === activeView) ?? BED_VIEWS[0]
   const currentPoly = polygons[activeView] ?? null
 
-  // Rebuild layout when polygon or overlay size changes (overlay must be measured first)
   useEffect(() => {
     if (currentPoly && overlaySize.w > 0) {
       setPlaced(buildLayout(currentPoly, viewDef))
@@ -120,10 +122,10 @@ export default function App() {
     setDrawPoints([])
   }
 
-  // pxPerFoot derived from polygon width × overlay width ÷ bed feet
+  // pxPerFoot: polygon width in pixels ÷ bed width in feet × perspective
   const pxPerFoot = currentPoly && overlaySize.w > 0
     ? (polyBounds(currentPoly).maxX - polyBounds(currentPoly).minX) * overlaySize.w / viewDef.bedWidthFt * PERSPECTIVE
-    : overlaySize.w / viewDef.bedWidthFt * PERSPECTIVE * 0.5
+    : overlaySize.w / viewDef.bedWidthFt * PERSPECTIVE
 
   const getOverlayFraction = useCallback((e) => {
     const rect = overlayRef.current.getBoundingClientRect()
@@ -135,18 +137,18 @@ export default function App() {
 
   function handleOverlayClick(e) {
     if (!overlayRef.current) return
-
     if (drawMode) {
       const pt = getOverlayFraction(e)
       if (drawPoints.length >= 3) {
         const first = drawPoints[0]
-        const dist = Math.hypot(pt.x - first.x, pt.y - first.y)
-        if (dist < 0.025) { finishPolygon(drawPoints); return }
+        if (Math.hypot(pt.x - first.x, pt.y - first.y) < 0.025) {
+          finishPolygon(drawPoints)
+          return
+        }
       }
       setDrawPoints(prev => [...prev, pt])
       return
     }
-
     if (!selected) return
     if (dragRef.current?.didDrag) { dragRef.current.didDrag = false; return }
     const { x, y } = getOverlayFraction(e)
@@ -158,7 +160,6 @@ export default function App() {
   function handleDoubleClick(e) {
     if (drawMode && drawPoints.length >= 3) {
       e.preventDefault()
-      // Remove the last point added by the first click of the double-click
       finishPolygon(drawPoints.slice(0, -1))
     }
   }
@@ -222,13 +223,7 @@ export default function App() {
   }
 
   const cropCenterPct = ((viewDef.cropTop + viewDef.cropBot) / 2 * 100).toFixed(1)
-  const imgStyle = {
-    width: '100%', height: '100%',
-    objectFit: 'cover',
-    objectPosition: `center ${cropCenterPct}%`,
-    display: 'block', userSelect: 'none',
-  }
-
+  const imgStyle = { width: '100%', height: '100%', objectFit: 'cover', objectPosition: `center ${cropCenterPct}%`, display: 'block', userSelect: 'none' }
   const toSVGPts = (pts) => pts.map(p => `${p.x * overlaySize.w},${p.y * overlaySize.h}`).join(' ')
   const cursor = drawMode ? 'crosshair' : selected ? 'crosshair' : 'default'
 
@@ -294,30 +289,22 @@ export default function App() {
               ✕ Cancel
             </button>
           )}
-          {currentPoly && !drawMode && (
-            <button style={s.btn(false)} onClick={clearPolygon}>Clear bed</button>
-          )}
+          {currentPoly && !drawMode && <button style={s.btn(false)} onClick={clearPolygon}>Clear bed</button>}
           <div style={s.divider} />
           <button style={s.btn(showLabels)} onClick={() => setShowLabels(v => !v)}>
             Labels {showLabels ? 'ON' : 'OFF'}
           </button>
-          {selected && !drawMode && (
-            <button style={s.btn(false)} onClick={() => setSelected(null)}>✕ Cancel</button>
-          )}
+          {selected && !drawMode && <button style={s.btn(false)} onClick={() => setSelected(null)}>✕ Cancel</button>}
           {currentPoly && !drawMode && (
-            <button style={s.btn(false)} onClick={() => setPlaced(buildLayout(currentPoly, viewDef))}>
-              Reset layout
-            </button>
+            <button style={s.btn(false)} onClick={() => setPlaced(buildLayout(currentPoly, viewDef))}>Reset layout</button>
           )}
           <span style={s.hint}>
             {drawMode
               ? drawPoints.length === 0
                 ? '🖊 Click each corner of the bed — double-click or click near ● to finish'
-                : `${drawPoints.length} corners placed — keep clicking, double-click to finish`
-              : selected
-              ? `Click photo to place ${plants.find(p => p.id === selected)?.commonName}`
-              : currentPoly
-              ? 'Drag to reposition · ✕ to remove · select plant to add more'
+                : `${drawPoints.length} corners — keep clicking, double-click to finish`
+              : selected ? `Click to place ${plants.find(p => p.id === selected)?.commonName}`
+              : currentPoly ? 'Drag to reposition · ✕ to remove · select plant to add more'
               : '← Click Define Bed and trace the outline on the photo'}
           </span>
         </div>
@@ -330,7 +317,6 @@ export default function App() {
           >
             <img src={viewDef.url} alt="Bed reference" style={imgStyle} draggable={false} />
 
-            {/* SVG overlay for polygon drawing — same coordinate space as placed plants */}
             {overlaySize.w > 0 && (currentPoly || drawPoints.length > 0) && (
               <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
                 viewBox={`0 0 ${overlaySize.w} ${overlaySize.h}`}>
@@ -342,12 +328,10 @@ export default function App() {
                 {drawPoints.length > 0 && (
                   <>
                     <polyline
-                      points={[...drawPoints, mousePos].filter(Boolean).map(p =>
-                        `${p.x * overlaySize.w},${p.y * overlaySize.h}`).join(' ')}
+                      points={[...drawPoints, mousePos].filter(Boolean).map(p => `${p.x * overlaySize.w},${p.y * overlaySize.h}`).join(' ')}
                       fill="none" stroke="rgba(255,130,0,0.9)" strokeWidth="2" strokeDasharray="5,3" />
                     {drawPoints.map((pt, i) => (
-                      <circle key={i}
-                        cx={pt.x * overlaySize.w} cy={pt.y * overlaySize.h}
+                      <circle key={i} cx={pt.x * overlaySize.w} cy={pt.y * overlaySize.h}
                         r={i === 0 ? 8 : 5}
                         fill={i === 0 ? 'rgba(255,130,0,0.95)' : 'rgba(255,200,50,0.9)'}
                         stroke="white" strokeWidth="2" />
@@ -385,7 +369,8 @@ function PlantThumb({ plant }) {
 }
 
 function PlacedPlant({ item, plant, showLabel, pxPerFoot, onDragStart, onRemove }) {
-  const sizePx = Math.max(14, Math.round(item.size * pxPerFoot))
+  // Cap max size so no plant ever exceeds 60px diameter regardless of scale
+  const sizePx = Math.min(60, Math.max(14, Math.round(item.size * pxPerFoot)))
   return (
     <div style={{ position: 'absolute', left: `${item.x * 100}%`, top: `${item.y * 100}%`,
       width: sizePx, height: sizePx, transform: 'translate(-50%,-50%)',
