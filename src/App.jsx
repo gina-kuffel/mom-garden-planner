@@ -2,10 +2,6 @@ import { useState, useRef, useEffect } from 'react'
 import plants from './data/plants'
 import PlantDetail from './PlantDetail'
 
-// Bed boundaries are defined as fractions of the overlay width/height.
-// bedLeft/bedRight = x fractions of the actual bed edges in the photo.
-// pxPerFoot = (bedRight - bedLeft) * overlayW / bedWidthFt
-// Then multiplied by PERSPECTIVE_SCALE to account for viewing distance foreshortening.
 const PERSPECTIVE_SCALE = 0.35
 
 const BED_VIEWS = [
@@ -16,24 +12,25 @@ const BED_VIEWS = [
     cropTop: 0.22,
     cropBot: 0.48,
     bedWidthFt: 30,
-    // Bed runs from left side of house (past entry) to right edge — ~75% of photo width
     bedLeft: 0.22,
     bedRight: 0.97,
+    // Positions calibrated from real clicks on mulch strip April 2026
+    // Front row (bed edge) y=0.479 avg; back row (foundation) y=0.450
     defaultLayout: [
-      // Back row: shrubs against foundation (y ~0.530)
-      { plantId: 'cherry-bomb-ninebark',  x: 0.24, y: 0.530 },
-      { plantId: 'incrediball-hydrangea', x: 0.36, y: 0.525 },
-      { plantId: 'karl-foerster-grass',   x: 0.50, y: 0.528 },
-      { plantId: 'little-lime-hydrangea', x: 0.67, y: 0.525 },
-      { plantId: 'karl-foerster-grass',   x: 0.82, y: 0.528 },
-      // Front row: perennials at bed edge (y ~0.595)
-      { plantId: 'walker-low-catmint',    x: 0.24, y: 0.595 },
-      { plantId: 'rozanne-geranium',      x: 0.36, y: 0.593 },
-      { plantId: 'walker-low-catmint',    x: 0.50, y: 0.601 },
-      { plantId: 'black-eyed-susan',      x: 0.60, y: 0.606 },
-      { plantId: 'rozanne-geranium',      x: 0.72, y: 0.600 },
-      { plantId: 'walker-low-catmint',    x: 0.84, y: 0.600 },
-      { plantId: 'autumn-fire-sedum',     x: 0.93, y: 0.602 },
+      // Back row: shrubs against foundation
+      { plantId: 'cherry-bomb-ninebark',  x: 0.262, y: 0.450 },
+      { plantId: 'incrediball-hydrangea', x: 0.370, y: 0.448 },
+      { plantId: 'karl-foerster-grass',   x: 0.488, y: 0.450 },
+      { plantId: 'little-lime-hydrangea', x: 0.640, y: 0.448 },
+      { plantId: 'karl-foerster-grass',   x: 0.780, y: 0.450 },
+      // Front row: perennials at bed edge
+      { plantId: 'walker-low-catmint',    x: 0.262, y: 0.479 },
+      { plantId: 'rozanne-geranium',      x: 0.370, y: 0.477 },
+      { plantId: 'walker-low-catmint',    x: 0.488, y: 0.481 },
+      { plantId: 'black-eyed-susan',      x: 0.587, y: 0.479 },
+      { plantId: 'rozanne-geranium',      x: 0.700, y: 0.484 },
+      { plantId: 'walker-low-catmint',    x: 0.790, y: 0.484 },
+      { plantId: 'autumn-fire-sedum',     x: 0.851, y: 0.488 },
     ],
   },
   {
@@ -155,7 +152,6 @@ export default function App() {
     setPlaced(prev => prev.filter(i => i.id !== itemId))
   }
 
-  // True scale: bed spans (bedRight-bedLeft) fraction of overlay width = bedWidthFt feet
   const bedSpanPx = (viewDef.bedRight - viewDef.bedLeft) * overlaySize.w
   const pxPerFoot = (bedSpanPx / viewDef.bedWidthFt) * PERSPECTIVE_SCALE
 
