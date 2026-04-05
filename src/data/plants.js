@@ -1,6 +1,4 @@
-// Plant photos: 7 hosted on Vercel Blob (permanent, no hotlink issues).
-// incrediball-hydrangea and little-lime-hydrangea use Wikimedia direct as fallback
-// until re-uploaded — they load fine in browsers from residential IPs.
+// All plant photos hosted on Vercel Blob — permanent, no hotlink issues, zero proxy needed.
 
 const BLOB = 'https://sg4c4d4k3ddwfv8d.public.blob.vercel-storage.com/plants'
 
@@ -40,7 +38,7 @@ const plants = [
     deerResistance: 'moderate',
     zone: '3-9',
     color: '#c8c8b8',
-    photoUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/9e/Hydrangea_arborescens_Annabelle_1.jpg/320px-Hydrangea_arborescens_Annabelle_1.jpg',
+    photoUrl: `${BLOB}/incrediball-hydrangea.jpg`,
     notes: 'Enormous white globes July–September. Cut back hard in early spring. One of the most reliable shrubs for Zone 6.',
   },
   {
@@ -59,7 +57,7 @@ const plants = [
     deerResistance: 'moderate',
     zone: '3-8',
     color: '#a8c860',
-    photoUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/24/Hydrangea_paniculata_Limelight_1.jpg/320px-Hydrangea_paniculata_Limelight_1.jpg',
+    photoUrl: `${BLOB}/little-lime-hydrangea.jpg`,
     notes: 'Compact Limelight. Green blooms age to pink in fall. Prune in early spring.',
   },
   {
