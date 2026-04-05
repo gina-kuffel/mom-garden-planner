@@ -2,7 +2,7 @@ import { useState } from 'react'
 import PropertySetup from './PropertySetup'
 import Planner from './Planner'
 
-const STORAGE_KEY = 'propertyZones_v1'
+const STORAGE_KEY = 'propertyZones_v2'
 function hasZones() {
   try {
     const z = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}')
