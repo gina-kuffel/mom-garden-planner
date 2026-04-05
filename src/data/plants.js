@@ -1,5 +1,8 @@
-// Route all Wikimedia images through our own proxy so hotlink protection doesn't block them
-const proxy = (url) => `/api/image-proxy?url=${encodeURIComponent(url)}`
+// Wikimedia Special:FilePath URLs are the canonical open-access image URLs.
+// The browser fetches them as <img> tags and Wikimedia redirects to their CDN
+// with proper CORS headers — no proxy needed, works in dev and production.
+const wiki = (filename) =>
+  `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(filename)}?width=320`
 
 const plants = [
   {
@@ -18,7 +21,7 @@ const plants = [
     deerResistance: 'high',
     zone: '2-7',
     color: '#7a3055',
-    photoUrl: proxy('https://upload.wikimedia.org/wikipedia/commons/thumb/a/a0/Physocarpus_opulifolius_Diabolo_kz.jpg/320px-Physocarpus_opulifolius_Diabolo_kz.jpg'),
+    photoUrl: wiki('Physocarpus opulifolius Diabolo kz.jpg'),
     notes: 'Dramatic dark burgundy foliage all season. Extremely tough — clay, drought, Zone 6 cold all fine. Illinois native selection.',
   },
   {
@@ -37,7 +40,7 @@ const plants = [
     deerResistance: 'moderate',
     zone: '3-9',
     color: '#c8c8b8',
-    photoUrl: proxy('https://upload.wikimedia.org/wikipedia/commons/thumb/9/9e/Hydrangea_arborescens_Annabelle_1.jpg/320px-Hydrangea_arborescens_Annabelle_1.jpg'),
+    photoUrl: wiki('Hydrangea arborescens Annabelle 1.jpg'),
     notes: 'Enormous white globes July–September. Cut back hard in early spring. One of the most reliable shrubs for Zone 6.',
   },
   {
@@ -56,7 +59,7 @@ const plants = [
     deerResistance: 'moderate',
     zone: '3-8',
     color: '#a8c860',
-    photoUrl: proxy('https://upload.wikimedia.org/wikipedia/commons/thumb/2/24/Hydrangea_paniculata_Limelight_1.jpg/320px-Hydrangea_paniculata_Limelight_1.jpg'),
+    photoUrl: wiki('Hydrangea paniculata Limelight 1.jpg'),
     notes: 'Compact Limelight. Green blooms age to pink in fall. Prune in early spring.',
   },
   {
@@ -75,7 +78,7 @@ const plants = [
     deerResistance: 'high',
     zone: '3-8',
     color: '#8878b8',
-    photoUrl: proxy('https://upload.wikimedia.org/wikipedia/commons/thumb/1/14/Nepeta_x_faassenii_kz.jpg/320px-Nepeta_x_faassenii_kz.jpg'),
+    photoUrl: wiki('Nepeta x faassenii kz.jpg'),
     notes: 'Perennial Plant of the Year 2007. Cut back by half after first bloom for a second flush. Thrives in clay once established.',
   },
   {
@@ -94,7 +97,7 @@ const plants = [
     deerResistance: 'high',
     zone: '4-8',
     color: '#6060a8',
-    photoUrl: proxy('https://upload.wikimedia.org/wikipedia/commons/thumb/8/8f/Geranium_Rozanne_kz.jpg/320px-Geranium_Rozanne_kz.jpg'),
+    photoUrl: wiki('Geranium Rozanne kz.jpg'),
     notes: 'Perennial Plant of the Year 2008. Blooms May through hard frost — longest season of any geranium. Low spreading mat.',
   },
   {
@@ -113,7 +116,7 @@ const plants = [
     deerResistance: 'high',
     zone: '3-9',
     color: '#c89810',
-    photoUrl: proxy('https://upload.wikimedia.org/wikipedia/commons/thumb/d/d5/Rudbeckia_fulgida_Goldsturm_kz1.jpg/320px-Rudbeckia_fulgida_Goldsturm_kz1.jpg'),
+    photoUrl: wiki('Rudbeckia fulgida Goldsturm kz1.jpg'),
     notes: 'Midwest workhorse. Extremely clay tolerant. Seed heads feed birds through winter.',
   },
   {
@@ -132,7 +135,7 @@ const plants = [
     deerResistance: 'high',
     zone: '4-9',
     color: '#a89040',
-    photoUrl: proxy('https://upload.wikimedia.org/wikipedia/commons/thumb/5/55/Calamagrostis_acutiflora_karl_foerster.jpg/320px-Calamagrostis_acutiflora_karl_foerster.jpg'),
+    photoUrl: wiki('Calamagrostis acutiflora karl foerster.jpg'),
     notes: 'Upright architectural grass. Excellent clay tolerance. Leaves standing through winter for structure and bird habitat.',
   },
   {
@@ -151,7 +154,7 @@ const plants = [
     deerResistance: 'high',
     zone: '3-9',
     color: '#88a848',
-    photoUrl: proxy('https://upload.wikimedia.org/wikipedia/commons/thumb/1/15/Sporobolus_heterolepis_Prairie_Dropseed.jpg/320px-Sporobolus_heterolepis_Prairie_Dropseed.jpg'),
+    photoUrl: wiki('Sporobolus heterolepis Prairie Dropseed.jpg'),
     notes: 'Illinois native. Fine-textured arching mounds. Fragrant blooms. Brilliant orange in fall.',
   },
   {
@@ -170,7 +173,7 @@ const plants = [
     deerResistance: 'high',
     zone: '3-9',
     color: '#b03828',
-    photoUrl: proxy('https://upload.wikimedia.org/wikipedia/commons/thumb/5/5e/Hylotelephium_telephium_Herbstfreude_kz.jpg/320px-Hylotelephium_telephium_Herbstfreude_kz.jpg'),
+    photoUrl: wiki('Hylotelephium telephium Herbstfreude kz.jpg'),
     notes: '⚠️ Clay caution — amend with grit and compost. Excellent late-season color and structure.',
   },
 ]
