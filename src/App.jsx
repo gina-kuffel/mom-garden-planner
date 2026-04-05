@@ -10,16 +10,16 @@ const BED_VIEWS = [
     cropTop: 0.22,
     cropBot: 0.48,
     bedWidthFt: 30,
+    // y values = actual mulch-strip clicks + 0.06 so circle centers sit IN the bed
     defaultLayout: [
-      // x/y calibrated from real clicks on the mulch strip — April 2026
-      { plantId: 'walker-low-catmint',  x: 0.229, y: 0.485 },
-      { plantId: 'rozanne-geranium',    x: 0.303, y: 0.483 },
-      { plantId: 'walker-low-catmint',  x: 0.375, y: 0.491 },
-      { plantId: 'rozanne-geranium',    x: 0.467, y: 0.495 },
-      { plantId: 'black-eyed-susan',    x: 0.557, y: 0.496 },
-      { plantId: 'rozanne-geranium',    x: 0.638, y: 0.495 },
-      { plantId: 'walker-low-catmint',  x: 0.712, y: 0.500 },
-      { plantId: 'autumn-fire-sedum',   x: 0.869, y: 0.502 },
+      { plantId: 'walker-low-catmint',  x: 0.229, y: 0.545 },
+      { plantId: 'rozanne-geranium',    x: 0.303, y: 0.543 },
+      { plantId: 'walker-low-catmint',  x: 0.375, y: 0.551 },
+      { plantId: 'rozanne-geranium',    x: 0.467, y: 0.555 },
+      { plantId: 'black-eyed-susan',    x: 0.557, y: 0.556 },
+      { plantId: 'rozanne-geranium',    x: 0.638, y: 0.555 },
+      { plantId: 'walker-low-catmint',  x: 0.712, y: 0.560 },
+      { plantId: 'autumn-fire-sedum',   x: 0.869, y: 0.562 },
     ],
   },
   {
@@ -138,8 +138,6 @@ export default function App() {
     setPlaced(prev => prev.filter(i => i.id !== itemId))
   }
 
-  // Scale: viewport width / bedWidthFt gives px-per-foot.
-  // Multiply by 0.55 so a mature 3ft perennial is ~55px — readable but not overwhelming.
   const pxPerFoot = (overlaySize.w / viewDef.bedWidthFt) * 0.55
 
   const cropCenterPct = ((viewDef.cropTop + viewDef.cropBot) / 2 * 100).toFixed(1)
@@ -269,8 +267,8 @@ function PlacedPlant({ item, plant, showLabel, pxPerFoot, onDragStart, onRemove 
         top:  `${item.y * 100}%`,
         width: sizePx,
         height: sizePx,
-        // Anchor bottom of circle to the y coordinate so plants sit ON the bed line
-        transform: 'translate(-50%, -100%)',
+        // Center the circle on the coordinate point
+        transform: 'translate(-50%, -50%)',
         pointerEvents: 'auto',
         cursor: 'grab',
         userSelect: 'none',
