@@ -41,13 +41,11 @@ export default function App() {
   const dragRef    = useRef(null)
   const nextId     = useRef(1)
 
-  // Load default photo (Bed A) on first mount
   useEffect(() => {
     const defaultView = BED_VIEWS.find(v => v.key === 'bedA')
     loadBedPhoto(defaultView.url).then(setPhoto)
   }, [])
 
-  // Track overlay size
   useEffect(() => {
     if (!overlayRef.current) return
     const obs = new ResizeObserver(entries => {
@@ -181,16 +179,12 @@ export default function App() {
               {v.label}
             </button>
           ))}
-
           <div style={s.divider} />
-
           <label style={s.uploadBtn}>
             📷 Custom Photo
             <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handlePhotoUpload} />
           </label>
-
           <div style={s.divider} />
-
           <button style={s.btn(showLabels)} onClick={() => setShowLabels(v => !v)}>
             Labels {showLabels ? 'ON' : 'OFF'}
           </button>
@@ -241,24 +235,22 @@ export default function App() {
   )
 }
 
+// Renders the SVG illustration in the sidebar thumbnail
 function PlantThumb({ plant }) {
-  const [failed, setFailed] = useState(false)
-  if (plant.photoUrl && !failed) {
-    return (
-      <img src={plant.photoUrl} alt={plant.commonName}
-        style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: '2px solid rgba(0,0,0,0.08)' }}
-        onError={() => setFailed(true)} />
-    )
-  }
   return (
-    <div style={{ width: 44, height: 44, borderRadius: '50%', flexShrink: 0, background: plant.color, border: '2px solid rgba(0,0,0,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>
-      🌿
-    </div>
+    <div
+      style={{
+        width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
+        overflow: 'hidden', border: '2px solid rgba(0,0,0,0.08)',
+        background: plant.color,
+      }}
+      dangerouslySetInnerHTML={{ __html: plant.svgIcon }}
+    />
   )
 }
 
+// Renders the SVG illustration on the placed overlay circle
 function PlacedPlant({ item, plant, showLabel, overlayW, onDragStart, onRemove }) {
-  const [failed, setFailed] = useState(false)
   const sizePx = Math.max(40, Math.round(overlayW * 0.02 * item.size))
 
   return (
@@ -285,28 +277,20 @@ function PlacedPlant({ item, plant, showLabel, overlayW, onDragStart, onRemove }
         boxShadow: '0 2px 10px rgba(0,0,0,0.40)',
         background: plant.color,
         position: 'relative',
-      }}>
-        {plant.photoUrl && !failed && (
-          <img
-            src={plant.photoUrl}
-            alt={plant.commonName}
-            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-            onError={() => setFailed(true)}
-            draggable={false}
-          />
-        )}
-        <button
-          onMouseDown={e => e.stopPropagation()}
-          onClick={onRemove}
-          style={{
-            position: 'absolute', top: 3, right: 3,
-            width: 18, height: 18, borderRadius: '50%',
-            background: 'rgba(0,0,0,0.60)', border: 'none',
-            color: '#fff', fontSize: 10, lineHeight: '18px',
-            textAlign: 'center', cursor: 'pointer', padding: 0,
-          }}
-        >✕</button>
-      </div>
+      }}
+        dangerouslySetInnerHTML={{ __html: plant.svgIcon }}
+      />
+      <button
+        onMouseDown={e => e.stopPropagation()}
+        onClick={onRemove}
+        style={{
+          position: 'absolute', top: 3, right: 3,
+          width: 18, height: 18, borderRadius: '50%',
+          background: 'rgba(0,0,0,0.60)', border: 'none',
+          color: '#fff', fontSize: 10, lineHeight: '18px',
+          textAlign: 'center', cursor: 'pointer', padding: 0,
+        }}
+      >✕</button>
       {showLabel && (
         <div style={{
           marginTop: 4, background: 'rgba(255,255,255,0.92)',
