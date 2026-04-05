@@ -7,16 +7,55 @@ const BED_VIEWS = [
     key: 'bedA',
     label: 'Bed A — Home Front',
     url: 'https://sg4c4d4k3ddwfv8d.public.blob.vercel-storage.com/bedA.jpeg',
+    // Bed A: ~30ft wide × 2ft deep. North-facing, shaded by eave overhang.
+    // Basement window centered. Single staggered row of perennials.
+    bedWidthFt: 30,
+    defaultLayout: [
+      // x = left-to-right fraction across photo (bed spans ~0.05 to 0.95)
+      // y = top-to-bottom fraction; bed sits at roughly 0.72–0.88 of photo height
+      // Bed A plan: Lungwort, Bleeding Heart, Coral Bells alternating, Wild Ginger, Bugleweed
+      // Mapped to current catalog: Rozanne Geranium anchors center, Coral Bells (catmint stands in)
+      // flanking, Black-Eyed Susan for color, Karl Foerster at ends for structure
+      { plantId: 'walker-low-catmint',   x: 0.08, y: 0.80 },
+      { plantId: 'rozanne-geranium',     x: 0.20, y: 0.78 },
+      { plantId: 'walker-low-catmint',   x: 0.32, y: 0.80 },
+      { plantId: 'rozanne-geranium',     x: 0.44, y: 0.77 },
+      { plantId: 'black-eyed-susan',     x: 0.56, y: 0.79 },
+      { plantId: 'rozanne-geranium',     x: 0.68, y: 0.78 },
+      { plantId: 'walker-low-catmint',   x: 0.80, y: 0.80 },
+      { plantId: 'autumn-fire-sedum',    x: 0.91, y: 0.79 },
+    ],
   },
   {
     key: 'bedB',
     label: 'Bed B — Garage Front',
     url: 'https://sg4c4d4k3ddwfv8d.public.blob.vercel-storage.com/bedB.jpeg',
+    // Bed B: ~30ft wide × 4ft deep. More open sky, slightly more sun.
+    // Shrubs in back row, perennials in front row.
+    bedWidthFt: 30,
+    defaultLayout: [
+      // Back row: shrubs (y ~0.62)
+      { plantId: 'cherry-bomb-ninebark',  x: 0.10, y: 0.62 },
+      { plantId: 'incrediball-hydrangea', x: 0.28, y: 0.60 },
+      { plantId: 'karl-foerster-grass',   x: 0.44, y: 0.61 },
+      { plantId: 'little-lime-hydrangea', x: 0.60, y: 0.60 },
+      { plantId: 'karl-foerster-grass',   x: 0.76, y: 0.61 },
+      // Front row: perennials (y ~0.76)
+      { plantId: 'walker-low-catmint',    x: 0.12, y: 0.76 },
+      { plantId: 'black-eyed-susan',      x: 0.26, y: 0.75 },
+      { plantId: 'black-eyed-susan',      x: 0.38, y: 0.76 },
+      { plantId: 'prairie-dropseed',      x: 0.52, y: 0.75 },
+      { plantId: 'prairie-dropseed',      x: 0.64, y: 0.76 },
+      { plantId: 'rozanne-geranium',      x: 0.76, y: 0.75 },
+      { plantId: 'autumn-fire-sedum',     x: 0.88, y: 0.76 },
+    ],
   },
   {
     key: 'whole',
     label: 'Whole Home',
     url: 'https://sg4c4d4k3ddwfv8d.public.blob.vercel-storage.com/whole-home.jpeg',
+    bedWidthFt: 60, // wider view
+    defaultLayout: [],
   },
 ]
 
@@ -29,6 +68,17 @@ function loadBedPhoto(url) {
   })
 }
 
+let _nextId = 1
+function makeLayout(layoutDef) {
+  return layoutDef.map(p => ({
+    id: _nextId++,
+    plantId: p.plantId,
+    x: p.x,
+    y: p.y,
+    size: plants.find(pl => pl.id === p.plantId)?.matureWidth ?? 3,
+  }))
+}
+
 export default function App() {
   const [photo, setPhoto]               = useState(null)
   const [activeView, setActiveView]     = useState('bedA')
@@ -39,11 +89,12 @@ export default function App() {
   const [overlaySize, setOverlaySize]   = useState({ w: 0, h: 0 })
   const overlayRef = useRef(null)
   const dragRef    = useRef(null)
-  const nextId     = useRef(1)
 
+  // Load default view + pre-populate layout on mount
   useEffect(() => {
-    const defaultView = BED_VIEWS.find(v => v.key === 'bedA')
-    loadBedPhoto(defaultView.url).then(setPhoto)
+    const view = BED_VIEWS.find(v => v.key === 'bedA')
+    loadBedPhoto(view.url).then(setPhoto)
+    setPlaced(makeLayout(view.defaultLayout))
   }, [])
 
   useEffect(() => {
@@ -61,7 +112,7 @@ export default function App() {
     if (!view) return
     setActiveView(viewKey)
     loadBedPhoto(view.url).then(setPhoto)
-    setPlaced([])
+    setPlaced(makeLayout(view.defaultLayout))
     setSelected(null)
   }
 
@@ -73,6 +124,7 @@ export default function App() {
     img.onload = () => {
       setPhoto({ url, naturalW: img.naturalWidth, naturalH: img.naturalHeight })
       setActiveView(null)
+      setPlaced([])
     }
     img.src = url
   }
@@ -86,7 +138,7 @@ export default function App() {
     const plant = plants.find(p => p.id === selected)
     if (!plant) return
     setPlaced(prev => [...prev, {
-      id: nextId.current++,
+      id: _nextId++,
       plantId: selected,
       x: xPct,
       y: yPct,
@@ -124,6 +176,12 @@ export default function App() {
     e.stopPropagation()
     setPlaced(prev => prev.filter(i => i.id !== itemId))
   }
+
+  // Scale: treat the overlay width as representing bedWidthFt feet.
+  // Each placed circle diameter = plant.matureWidth / bedWidthFt * overlayW pixels.
+  const currentViewDef = BED_VIEWS.find(v => v.key === activeView)
+  const bedWidthFt = currentViewDef?.bedWidthFt ?? 30
+  const pxPerFoot = overlaySize.w / bedWidthFt
 
   const s = {
     root:      { display: 'flex', height: '100vh', overflow: 'hidden', background: '#f2efe8' },
@@ -192,12 +250,14 @@ export default function App() {
             <button style={s.btn(false)} onClick={() => setSelected(null)}>✕ Cancel placing</button>
           )}
           {placed.length > 0 && (
-            <button style={s.btn(false)} onClick={() => setPlaced([])}>Clear all</button>
+            <button style={s.btn(false)} onClick={() => setPlaced(makeLayout(currentViewDef?.defaultLayout ?? []))}>
+              Reset layout
+            </button>
           )}
           <span style={s.hint}>
             {selected
               ? `Click the photo to place ${plants.find(p => p.id === selected)?.commonName}`
-              : photo ? 'Select a plant from the sidebar, then click the photo to place it'
+              : photo ? 'Select a plant to add, or drag to reposition · Reset layout restores default plan'
               : 'Loading photo…'}
           </span>
         </div>
@@ -220,7 +280,7 @@ export default function App() {
                       item={item}
                       plant={plant}
                       showLabel={showLabels}
-                      overlayW={overlaySize.w}
+                      pxPerFoot={pxPerFoot}
                       onDragStart={e => startDrag(e, item.id)}
                       onRemove={e => removePlaced(e, item.id)}
                     />
@@ -235,7 +295,6 @@ export default function App() {
   )
 }
 
-// Renders the SVG illustration in the sidebar thumbnail
 function PlantThumb({ plant }) {
   return (
     <div
@@ -249,9 +308,10 @@ function PlantThumb({ plant }) {
   )
 }
 
-// Renders the SVG illustration on the placed overlay circle
-function PlacedPlant({ item, plant, showLabel, overlayW, onDragStart, onRemove }) {
-  const sizePx = Math.max(40, Math.round(overlayW * 0.02 * item.size))
+function PlacedPlant({ item, plant, showLabel, pxPerFoot, onDragStart, onRemove }) {
+  // Size the circle to the plant's mature width in real scale.
+  // Minimum 24px so tiny perennials are still clickable.
+  const sizePx = Math.max(24, Math.round(item.size * pxPerFoot))
 
   return (
     <div
@@ -273,8 +333,8 @@ function PlacedPlant({ item, plant, showLabel, overlayW, onDragStart, onRemove }
         height: '100%',
         borderRadius: '50%',
         overflow: 'hidden',
-        border: '2.5px solid rgba(255,255,255,0.80)',
-        boxShadow: '0 2px 10px rgba(0,0,0,0.40)',
+        border: '2px solid rgba(255,255,255,0.85)',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.35)',
         background: plant.color,
         position: 'relative',
       }}
@@ -284,19 +344,19 @@ function PlacedPlant({ item, plant, showLabel, overlayW, onDragStart, onRemove }
         onMouseDown={e => e.stopPropagation()}
         onClick={onRemove}
         style={{
-          position: 'absolute', top: 3, right: 3,
-          width: 18, height: 18, borderRadius: '50%',
-          background: 'rgba(0,0,0,0.60)', border: 'none',
-          color: '#fff', fontSize: 10, lineHeight: '18px',
+          position: 'absolute', top: 2, right: 2,
+          width: 16, height: 16, borderRadius: '50%',
+          background: 'rgba(0,0,0,0.55)', border: 'none',
+          color: '#fff', fontSize: 9, lineHeight: '16px',
           textAlign: 'center', cursor: 'pointer', padding: 0,
         }}
       >✕</button>
       {showLabel && (
         <div style={{
-          marginTop: 4, background: 'rgba(255,255,255,0.92)',
-          borderRadius: 4, padding: '2px 6px', fontSize: 10,
+          marginTop: 3, background: 'rgba(255,255,255,0.92)',
+          borderRadius: 4, padding: '1px 5px', fontSize: 9,
           fontWeight: 600, color: '#1e3408', whiteSpace: 'nowrap',
-          textAlign: 'center', boxShadow: '0 1px 4px rgba(0,0,0,0.22)',
+          textAlign: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.20)',
         }}>
           {plant.commonName.split(' ').slice(0, 2).join(' ')}
         </div>
