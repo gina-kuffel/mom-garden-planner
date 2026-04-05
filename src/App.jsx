@@ -2,8 +2,6 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import plants from './data/plants'
 import PlantDetail from './PlantDetail'
 
-// Perspective scale: reduce apparent size since plants are viewed from distance
-// 0.22 means a 5ft shrub shows as ~22% of what it would at 1:1 scale
 const PERSPECTIVE = 0.22
 
 const BED_VIEWS = [
@@ -50,25 +48,19 @@ let _id = 1
 function buildLayout(poly, viewDef) {
   if (!poly || poly.length < 3) return []
   const { minX, maxX, minY, maxY } = polyBounds(poly)
-  const xPad = (maxX - minX) * 0.04   // 4% padding from left/right edges
+  const xPad = (maxX - minX) * 0.04
   const ySpan = maxY - minY
-
-  // Place back row at 20% from top of polygon, front row at 75%
-  const backY  = minY + ySpan * 0.20
+  const backY  = minY + ySpan * 0.25
   const frontY = minY + ySpan * 0.75
-
   const backXs  = evenSpread(viewDef.backRow.length,  minX + xPad, maxX - xPad)
   const frontXs = evenSpread(viewDef.frontRow.length, minX + xPad, maxX - xPad)
-
   return [
     ...viewDef.backRow.map((plantId, i) => ({
-      id: _id++, plantId,
-      x: backXs[i], y: backY,
+      id: _id++, plantId, x: backXs[i], y: backY,
       size: plants.find(p => p.id === plantId)?.matureWidth ?? 3,
     })),
     ...viewDef.frontRow.map((plantId, i) => ({
-      id: _id++, plantId,
-      x: frontXs[i], y: frontY,
+      id: _id++, plantId, x: frontXs[i], y: frontY,
       size: plants.find(p => p.id === plantId)?.matureWidth ?? 3,
     })),
   ]
@@ -99,6 +91,13 @@ export default function App() {
   const viewDef     = BED_VIEWS.find(v => v.key === activeView) ?? BED_VIEWS[0]
   const currentPoly = polygons[activeView] ?? null
 
+  // The hard ceiling for any circle: half the polygon height in pixels.
+  // This guarantees no circle can ever visually overflow the outline.
+  const polyHeightPx = currentPoly && overlaySize.h > 0
+    ? (polyBounds(currentPoly).maxY - polyBounds(currentPoly).minY) * overlaySize.h
+    : 999
+  const maxCirclePx = Math.floor(polyHeightPx / 2.2)
+
   useEffect(() => {
     if (currentPoly && overlaySize.w > 0) {
       setPlaced(buildLayout(currentPoly, viewDef))
@@ -122,7 +121,6 @@ export default function App() {
     setDrawPoints([])
   }
 
-  // pxPerFoot: polygon width in pixels ÷ bed width in feet × perspective
   const pxPerFoot = currentPoly && overlaySize.w > 0
     ? (polyBounds(currentPoly).maxX - polyBounds(currentPoly).minX) * overlaySize.w / viewDef.bedWidthFt * PERSPECTIVE
     : overlaySize.w / viewDef.bedWidthFt * PERSPECTIVE
@@ -142,8 +140,7 @@ export default function App() {
       if (drawPoints.length >= 3) {
         const first = drawPoints[0]
         if (Math.hypot(pt.x - first.x, pt.y - first.y) < 0.025) {
-          finishPolygon(drawPoints)
-          return
+          finishPolygon(drawPoints); return
         }
       }
       setDrawPoints(prev => [...prev, pt])
@@ -348,6 +345,7 @@ export default function App() {
                 return (
                   <PlacedPlant key={item.id} item={item} plant={plant}
                     showLabel={showLabels} pxPerFoot={pxPerFoot}
+                    maxCirclePx={maxCirclePx}
                     onDragStart={e => startDrag(e, item.id)}
                     onRemove={e => removePlaced(e, item.id)} />
                 )
@@ -368,9 +366,10 @@ function PlantThumb({ plant }) {
   )
 }
 
-function PlacedPlant({ item, plant, showLabel, pxPerFoot, onDragStart, onRemove }) {
-  // Cap max size so no plant ever exceeds 60px diameter regardless of scale
-  const sizePx = Math.min(60, Math.max(14, Math.round(item.size * pxPerFoot)))
+function PlacedPlant({ item, plant, showLabel, pxPerFoot, maxCirclePx, onDragStart, onRemove }) {
+  // sizePx is capped by maxCirclePx — derived from polygon height — so circles
+  // can never be taller than half the polygon, guaranteeing they stay inside the outline.
+  const sizePx = Math.min(maxCirclePx, Math.max(10, Math.round(item.size * pxPerFoot)))
   return (
     <div style={{ position: 'absolute', left: `${item.x * 100}%`, top: `${item.y * 100}%`,
       width: sizePx, height: sizePx, transform: 'translate(-50%,-50%)',
