@@ -1,8 +1,8 @@
-// Wikimedia Special:FilePath URLs are the canonical open-access image URLs.
-// The browser fetches them as <img> tags and Wikimedia redirects to their CDN
-// with proper CORS headers — no proxy needed, works in dev and production.
-const wiki = (filename) =>
-  `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(filename)}?width=320`
+// Plant photos: 7 hosted on Vercel Blob (permanent, no hotlink issues).
+// incrediball-hydrangea and little-lime-hydrangea use Wikimedia direct as fallback
+// until re-uploaded — they load fine in browsers from residential IPs.
+
+const BLOB = 'https://sg4c4d4k3ddwfv8d.public.blob.vercel-storage.com/plants'
 
 const plants = [
   {
@@ -21,7 +21,7 @@ const plants = [
     deerResistance: 'high',
     zone: '2-7',
     color: '#7a3055',
-    photoUrl: wiki('Physocarpus opulifolius Diabolo kz.jpg'),
+    photoUrl: `${BLOB}/cherry-bomb-ninebark.jpg`,
     notes: 'Dramatic dark burgundy foliage all season. Extremely tough — clay, drought, Zone 6 cold all fine. Illinois native selection.',
   },
   {
@@ -40,7 +40,7 @@ const plants = [
     deerResistance: 'moderate',
     zone: '3-9',
     color: '#c8c8b8',
-    photoUrl: wiki('Hydrangea arborescens Annabelle 1.jpg'),
+    photoUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/9e/Hydrangea_arborescens_Annabelle_1.jpg/320px-Hydrangea_arborescens_Annabelle_1.jpg',
     notes: 'Enormous white globes July–September. Cut back hard in early spring. One of the most reliable shrubs for Zone 6.',
   },
   {
@@ -59,7 +59,7 @@ const plants = [
     deerResistance: 'moderate',
     zone: '3-8',
     color: '#a8c860',
-    photoUrl: wiki('Hydrangea paniculata Limelight 1.jpg'),
+    photoUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/24/Hydrangea_paniculata_Limelight_1.jpg/320px-Hydrangea_paniculata_Limelight_1.jpg',
     notes: 'Compact Limelight. Green blooms age to pink in fall. Prune in early spring.',
   },
   {
@@ -78,7 +78,7 @@ const plants = [
     deerResistance: 'high',
     zone: '3-8',
     color: '#8878b8',
-    photoUrl: wiki('Nepeta x faassenii kz.jpg'),
+    photoUrl: `${BLOB}/walker-low-catmint.jpg`,
     notes: 'Perennial Plant of the Year 2007. Cut back by half after first bloom for a second flush. Thrives in clay once established.',
   },
   {
@@ -97,7 +97,7 @@ const plants = [
     deerResistance: 'high',
     zone: '4-8',
     color: '#6060a8',
-    photoUrl: wiki('Geranium Rozanne kz.jpg'),
+    photoUrl: `${BLOB}/rozanne-geranium.jpg`,
     notes: 'Perennial Plant of the Year 2008. Blooms May through hard frost — longest season of any geranium. Low spreading mat.',
   },
   {
@@ -116,7 +116,7 @@ const plants = [
     deerResistance: 'high',
     zone: '3-9',
     color: '#c89810',
-    photoUrl: wiki('Rudbeckia fulgida Goldsturm kz1.jpg'),
+    photoUrl: `${BLOB}/black-eyed-susan.jpg`,
     notes: 'Midwest workhorse. Extremely clay tolerant. Seed heads feed birds through winter.',
   },
   {
@@ -135,7 +135,7 @@ const plants = [
     deerResistance: 'high',
     zone: '4-9',
     color: '#a89040',
-    photoUrl: wiki('Calamagrostis acutiflora karl foerster.jpg'),
+    photoUrl: `${BLOB}/karl-foerster-grass.jpg`,
     notes: 'Upright architectural grass. Excellent clay tolerance. Leaves standing through winter for structure and bird habitat.',
   },
   {
@@ -154,7 +154,7 @@ const plants = [
     deerResistance: 'high',
     zone: '3-9',
     color: '#88a848',
-    photoUrl: wiki('Sporobolus heterolepis Prairie Dropseed.jpg'),
+    photoUrl: `${BLOB}/prairie-dropseed.jpg`,
     notes: 'Illinois native. Fine-textured arching mounds. Fragrant blooms. Brilliant orange in fall.',
   },
   {
@@ -173,7 +173,7 @@ const plants = [
     deerResistance: 'high',
     zone: '3-9',
     color: '#b03828',
-    photoUrl: wiki('Hylotelephium telephium Herbstfreude kz.jpg'),
+    photoUrl: `${BLOB}/autumn-fire-sedum.jpg`,
     notes: '⚠️ Clay caution — amend with grit and compost. Excellent late-season color and structure.',
   },
 ]
