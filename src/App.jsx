@@ -4,6 +4,12 @@ import PlantDetail from './PlantDetail'
 
 const PERSPECTIVE_SCALE = 0.35
 
+// Helper: distribute n plants evenly between xStart and xEnd
+function evenX(n, xStart, xEnd) {
+  if (n === 1) return [(xStart + xEnd) / 2]
+  return Array.from({ length: n }, (_, i) => xStart + (i / (n - 1)) * (xEnd - xStart))
+}
+
 const BED_VIEWS = [
   {
     key: 'bedA',
@@ -14,24 +20,30 @@ const BED_VIEWS = [
     bedWidthFt: 30,
     bedLeft: 0.22,
     bedRight: 0.97,
-    // Positions calibrated from real clicks on mulch strip April 2026
-    // Front row (bed edge) y=0.479 avg; back row (foundation) y=0.450
-    defaultLayout: [
-      // Back row: shrubs against foundation
-      { plantId: 'cherry-bomb-ninebark',  x: 0.262, y: 0.450 },
-      { plantId: 'incrediball-hydrangea', x: 0.370, y: 0.448 },
-      { plantId: 'karl-foerster-grass',   x: 0.488, y: 0.450 },
-      { plantId: 'little-lime-hydrangea', x: 0.640, y: 0.448 },
-      { plantId: 'karl-foerster-grass',   x: 0.780, y: 0.450 },
-      // Front row: perennials at bed edge
-      { plantId: 'walker-low-catmint',    x: 0.262, y: 0.479 },
-      { plantId: 'rozanne-geranium',      x: 0.370, y: 0.477 },
-      { plantId: 'walker-low-catmint',    x: 0.488, y: 0.481 },
-      { plantId: 'black-eyed-susan',      x: 0.587, y: 0.479 },
-      { plantId: 'rozanne-geranium',      x: 0.700, y: 0.484 },
-      { plantId: 'walker-low-catmint',    x: 0.790, y: 0.484 },
-      { plantId: 'autumn-fire-sedum',     x: 0.851, y: 0.488 },
-    ],
+    // y values from real clicks on mulch strip April 2026
+    // Front edge of bed (driveway side): y=0.479
+    // Back of bed (foundation side): y=0.450
+    // Bed spans x=0.22 to x=0.97 in the overlay
+    get defaultLayout() {
+      const backXs  = evenX(5, 0.23, 0.95)  // 5 shrubs across back
+      const frontXs = evenX(7, 0.23, 0.95)  // 7 perennials across front
+      return [
+        // Back row: shrubs against foundation at y=0.450
+        { plantId: 'cherry-bomb-ninebark',  x: backXs[0], y: 0.450 },
+        { plantId: 'incrediball-hydrangea', x: backXs[1], y: 0.450 },
+        { plantId: 'karl-foerster-grass',   x: backXs[2], y: 0.450 },
+        { plantId: 'little-lime-hydrangea', x: backXs[3], y: 0.450 },
+        { plantId: 'karl-foerster-grass',   x: backXs[4], y: 0.450 },
+        // Front row: perennials at bed edge y=0.479
+        { plantId: 'walker-low-catmint',    x: frontXs[0], y: 0.479 },
+        { plantId: 'rozanne-geranium',      x: frontXs[1], y: 0.479 },
+        { plantId: 'walker-low-catmint',    x: frontXs[2], y: 0.479 },
+        { plantId: 'black-eyed-susan',      x: frontXs[3], y: 0.479 },
+        { plantId: 'rozanne-geranium',      x: frontXs[4], y: 0.479 },
+        { plantId: 'walker-low-catmint',    x: frontXs[5], y: 0.479 },
+        { plantId: 'autumn-fire-sedum',     x: frontXs[6], y: 0.479 },
+      ]
+    },
   },
   {
     key: 'bedB',
@@ -42,19 +54,23 @@ const BED_VIEWS = [
     bedWidthFt: 30,
     bedLeft: 0.04,
     bedRight: 0.94,
-    defaultLayout: [
-      { plantId: 'karl-foerster-grass',   x: 0.08, y: 0.48 },
-      { plantId: 'karl-foerster-grass',   x: 0.22, y: 0.48 },
-      { plantId: 'black-eyed-susan',      x: 0.38, y: 0.50 },
-      { plantId: 'black-eyed-susan',      x: 0.52, y: 0.50 },
-      { plantId: 'black-eyed-susan',      x: 0.66, y: 0.50 },
-      { plantId: 'prairie-dropseed',      x: 0.78, y: 0.49 },
-      { plantId: 'prairie-dropseed',      x: 0.88, y: 0.49 },
-      { plantId: 'walker-low-catmint',    x: 0.14, y: 0.62 },
-      { plantId: 'rozanne-geranium',      x: 0.38, y: 0.63 },
-      { plantId: 'rozanne-geranium',      x: 0.58, y: 0.63 },
-      { plantId: 'autumn-fire-sedum',     x: 0.78, y: 0.62 },
-    ],
+    get defaultLayout() {
+      const backXs  = evenX(5, 0.05, 0.93)
+      const frontXs = evenX(4, 0.05, 0.93)
+      return [
+        // Back row: grasses + black-eyed susan
+        { plantId: 'karl-foerster-grass',  x: backXs[0], y: 0.46 },
+        { plantId: 'black-eyed-susan',     x: backXs[1], y: 0.46 },
+        { plantId: 'black-eyed-susan',     x: backXs[2], y: 0.46 },
+        { plantId: 'black-eyed-susan',     x: backXs[3], y: 0.46 },
+        { plantId: 'karl-foerster-grass',  x: backXs[4], y: 0.46 },
+        // Front row: perennials
+        { plantId: 'walker-low-catmint',   x: frontXs[0], y: 0.57 },
+        { plantId: 'prairie-dropseed',     x: frontXs[1], y: 0.57 },
+        { plantId: 'rozanne-geranium',     x: frontXs[2], y: 0.57 },
+        { plantId: 'autumn-fire-sedum',    x: frontXs[3], y: 0.57 },
+      ]
+    },
   },
   {
     key: 'whole',
