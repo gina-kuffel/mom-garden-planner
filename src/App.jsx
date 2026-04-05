@@ -10,16 +10,16 @@ const BED_VIEWS = [
     cropTop: 0.22,
     cropBot: 0.48,
     bedWidthFt: 30,
-    // y values = actual mulch-strip clicks + 0.06 so circle centers sit IN the bed
+    // y values = actual mulch-strip clicks + 0.11
     defaultLayout: [
-      { plantId: 'walker-low-catmint',  x: 0.229, y: 0.545 },
-      { plantId: 'rozanne-geranium',    x: 0.303, y: 0.543 },
-      { plantId: 'walker-low-catmint',  x: 0.375, y: 0.551 },
-      { plantId: 'rozanne-geranium',    x: 0.467, y: 0.555 },
-      { plantId: 'black-eyed-susan',    x: 0.557, y: 0.556 },
-      { plantId: 'rozanne-geranium',    x: 0.638, y: 0.555 },
-      { plantId: 'walker-low-catmint',  x: 0.712, y: 0.560 },
-      { plantId: 'autumn-fire-sedum',   x: 0.869, y: 0.562 },
+      { plantId: 'walker-low-catmint',  x: 0.229, y: 0.595 },
+      { plantId: 'rozanne-geranium',    x: 0.303, y: 0.593 },
+      { plantId: 'walker-low-catmint',  x: 0.375, y: 0.601 },
+      { plantId: 'rozanne-geranium',    x: 0.467, y: 0.605 },
+      { plantId: 'black-eyed-susan',    x: 0.557, y: 0.606 },
+      { plantId: 'rozanne-geranium',    x: 0.638, y: 0.605 },
+      { plantId: 'walker-low-catmint',  x: 0.712, y: 0.610 },
+      { plantId: 'autumn-fire-sedum',   x: 0.869, y: 0.612 },
     ],
   },
   {
@@ -267,7 +267,6 @@ function PlacedPlant({ item, plant, showLabel, pxPerFoot, onDragStart, onRemove 
         top:  `${item.y * 100}%`,
         width: sizePx,
         height: sizePx,
-        // Center the circle on the coordinate point
         transform: 'translate(-50%, -50%)',
         pointerEvents: 'auto',
         cursor: 'grab',
