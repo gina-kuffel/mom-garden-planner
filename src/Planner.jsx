@@ -40,14 +40,31 @@ function buildLayoutFromPoly(poly, viewDef, w, h) {
   const xs = pts.map(p => p.x), ys = pts.map(p => p.y)
   const minX = Math.min(...xs), maxX = Math.max(...xs)
   const minY = Math.min(...ys), maxY = Math.max(...ys)
-  const pad = (maxX - minX) * 0.04
-  const backY  = minY + (maxY - minY) * 0.25
-  const frontY = minY + (maxY - minY) * 0.75
-  const backXs  = evenSpread(viewDef.backRow.length,  minX + pad, maxX - pad)
-  const frontXs = evenSpread(viewDef.frontRow.length, minX + pad, maxX - pad)
+  const polyH = maxY - minY
+
+  // Max radius a circle can be so it stays fully inside the polygon vertically.
+  // With two rows, each row gets half the height. Leave a small gap at edges.
+  const maxR = Math.max(6, (polyH / 2) * 0.82)
+
+  // Row centers inset from top/bottom by exactly maxR so circles don't overflow
+  const backY  = minY + maxR
+  const frontY = maxY - maxR
+
+  const xPad = (maxX - minX) * 0.02
+  const backXs  = evenSpread(viewDef.backRow.length,  minX + xPad, maxX - xPad)
+  const frontXs = evenSpread(viewDef.frontRow.length, minX + xPad, maxX - xPad)
+
   return [
-    ...viewDef.backRow.map((plantId, i)  => ({ id: _id++, plantId, x: backXs[i],  y: backY,  size: plants.find(p => p.id === plantId)?.matureWidth ?? 3 })),
-    ...viewDef.frontRow.map((plantId, i) => ({ id: _id++, plantId, x: frontXs[i], y: frontY, size: plants.find(p => p.id === plantId)?.matureWidth ?? 3 })),
+    ...viewDef.backRow.map((plantId, i) => ({
+      id: _id++, plantId, x: backXs[i], y: backY,
+      size: plants.find(p => p.id === plantId)?.matureWidth ?? 3,
+      maxR,
+    })),
+    ...viewDef.frontRow.map((plantId, i) => ({
+      id: _id++, plantId, x: frontXs[i], y: frontY,
+      size: plants.find(p => p.id === plantId)?.matureWidth ?? 3,
+      maxR,
+    })),
   ]
 }
 
@@ -89,7 +106,17 @@ export default function Planner({ onRetrace }) {
     const rect = overlayRef.current.getBoundingClientRect()
     const plant = plants.find(p => p.id === selected)
     if (!plant) return
-    setPlaced(prev => [...prev, { id: _id++, plantId: selected, x: e.clientX - rect.left, y: e.clientY - rect.top, size: plant.matureWidth }])
+    // Use the current poly's maxR for newly placed plants too
+    const maxR = poly ? (() => {
+      const pts = poly.map(p => ({ x: p.x * overlaySize.w, y: p.y * overlaySize.h }))
+      const ys = pts.map(p => p.y)
+      return Math.max(6, ((Math.max(...ys) - Math.min(...ys)) / 2) * 0.82)
+    })() : 20
+    setPlaced(prev => [...prev, {
+      id: _id++, plantId: selected,
+      x: e.clientX - rect.left, y: e.clientY - rect.top,
+      size: plant.matureWidth, maxR,
+    }])
   }
 
   function startDrag(e, itemId) {
@@ -184,7 +211,11 @@ export default function Planner({ onRetrace }) {
               {placed.map(item => {
                 const plant = plants.find(p => p.id === item.plantId)
                 if (!plant) return null
-                const sizePx = Math.min(55, Math.max(14, Math.round(item.size * pxPerFoot)))
+                // Circle radius: derived from matureWidth in ft → px, but HARD CAPPED at item.maxR
+                // so it can never extend outside the polygon
+                const rawR  = Math.round(item.size * pxPerFoot) / 2
+                const r     = Math.min(item.maxR ?? 30, Math.max(6, rawR))
+                const sizePx = r * 2
                 return (
                   <div key={item.id} style={{ position: 'absolute', left: item.x, top: item.y, width: sizePx, height: sizePx, transform: 'translate(-50%,-50%)', pointerEvents: 'auto', cursor: 'grab', userSelect: 'none' }}
                     onMouseDown={e => startDrag(e, item.id)}>
