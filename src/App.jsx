@@ -1,16 +1,18 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
-import { Stage, Layer, Image as KImage, Line, Circle, Group, Text, RegularPolygon } from 'react-konva'
+import { useState, useEffect, useRef } from 'react'
+import { Stage, Layer, Image as KImage, Line, Circle, Group, Text } from 'react-konva'
 import useImage from 'use-image'
 import plantsData from './data/plants'
 import PlantDetail from './PlantDetail'
 
-// ─── Bed view definitions ───────────────────────────────────────────────────
+const PHOTO_W = 952
+const PHOTO_H = 1288
+
 const BED_VIEWS = [
   {
     key: 'bedA',
     label: 'Bed A — Home Front',
     url: 'https://sg4c4d4k3ddwfv8d.public.blob.vercel-storage.com/bedA.jpeg',
-    cropTop: 0.22, cropBot: 0.48,
+    cropTop: 0.30, cropBot: 0.52,
     bedWidthFt: 30,
     backRow:  ['cherry-bomb-ninebark','incrediball-hydrangea','karl-foerster-grass','little-lime-hydrangea','karl-foerster-grass'],
     frontRow: ['walker-low-catmint','rozanne-geranium','walker-low-catmint','black-eyed-susan','rozanne-geranium','walker-low-catmint','autumn-fire-sedum'],
@@ -19,7 +21,7 @@ const BED_VIEWS = [
     key: 'bedB',
     label: 'Bed B — Garage Front',
     url: 'https://sg4c4d4k3ddwfv8d.public.blob.vercel-storage.com/bedB.jpeg',
-    cropTop: 0.30, cropBot: 0.65,
+    cropTop: 0.35, cropBot: 0.60,
     bedWidthFt: 30,
     backRow:  ['karl-foerster-grass','black-eyed-susan','black-eyed-susan','black-eyed-susan','karl-foerster-grass'],
     frontRow: ['walker-low-catmint','prairie-dropseed','rozanne-geranium','autumn-fire-sedum'],
@@ -34,7 +36,6 @@ const BED_VIEWS = [
   },
 ]
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
 function evenSpread(n, lo, hi) {
   if (n <= 0) return []
   if (n === 1) return [(lo + hi) / 2]
@@ -46,7 +47,7 @@ function polyBounds(pts) {
   return { minX: Math.min(...xs), maxX: Math.max(...xs), minY: Math.min(...ys), maxY: Math.max(...ys) }
 }
 
-function buildLayout(poly, viewDef, stageW, stageH) {
+function buildLayout(poly, viewDef) {
   if (!poly || poly.length < 3) return []
   const { minX, maxX, minY, maxY } = polyBounds(poly)
   const xPad = (maxX - minX) * 0.04
@@ -56,107 +57,86 @@ function buildLayout(poly, viewDef, stageW, stageH) {
   const frontXs = evenSpread(viewDef.frontRow.length, minX + xPad, maxX - xPad)
   let id = Date.now()
   return [
-    ...viewDef.backRow.map((plantId, i) => ({ id: id++, plantId, x: backXs[i], y: backY, size: plantsData.find(p => p.id === plantId)?.matureWidth ?? 3 })),
+    ...viewDef.backRow.map((plantId, i)  => ({ id: id++, plantId, x: backXs[i],  y: backY,  size: plantsData.find(p => p.id === plantId)?.matureWidth ?? 3 })),
     ...viewDef.frontRow.map((plantId, i) => ({ id: id++, plantId, x: frontXs[i], y: frontY, size: plantsData.find(p => p.id === plantId)?.matureWidth ?? 3 })),
   ]
 }
 
-// Flatten polygon to Konva's flat [x,y,x,y...] format
-function flatPoly(pts) {
-  return pts.flatMap(p => [p.x, p.y])
-}
-
-const STORAGE_KEY = 'gardenPolygons_v3'
+const STORAGE_KEY = 'gardenPolygons_v4'
 function loadPolygons() { try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') } catch { return {} } }
 function savePolygons(p) { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(p)) } catch {} }
 
-// ─── BedCanvas: the Konva stage for one bed view ─────────────────────────────
+// ─── BedCanvas ───────────────────────────────────────────────────────────────
 function BedCanvas({ viewDef, poly, onPolyChange, placed, onPlacedChange, drawMode, selectedPlantId, showLabels, stageSize }) {
   const [img] = useImage(viewDef.url, 'anonymous')
   const stageRef = useRef(null)
 
-  // Calculate image dimensions to cover the stage, panning to cropTop/cropBot
-  const cropFrac  = viewDef.cropBot - viewDef.cropTop
-  const naturalAR = 952 / 1288  // source photo aspect ratio
-  // Scale image so it fills stage width, then offset vertically to show crop zone
-  const imgW  = stageSize.w
-  const imgH  = imgW / naturalAR
-  const cropStartY = -(viewDef.cropTop * imgH)
-  // Adjust so crop zone fills the stage height
-  const cropH = imgH * cropFrac
-  const scale = stageSize.h / cropH
-  const finalImgW = imgW * scale
-  const finalImgH = imgH * scale
-  const imgX = (stageSize.w - finalImgW) / 2
-  const imgY = -(viewDef.cropTop * finalImgH)
+  // Use Konva's crop to show exactly the cropTop..cropBot slice of the source photo,
+  // stretched to fill the full stage. This is clean, correct, and uses Konva natively.
+  const srcCropY = viewDef.cropTop * PHOTO_H
+  const srcCropH = (viewDef.cropBot - viewDef.cropTop) * PHOTO_H
+  const imgProps = {
+    image: img,
+    x: 0, y: 0,
+    width: stageSize.w,
+    height: stageSize.h,
+    crop: { x: 0, y: srcCropY, width: PHOTO_W, height: srcCropH },
+  }
 
-  // pxPerFoot derived from drawn polygon width
+  // Scale: the cropped photo region spans the full stage width = bedWidthFt feet
   const pxPerFoot = poly
     ? (polyBounds(poly).maxX - polyBounds(poly).minX) / viewDef.bedWidthFt
     : stageSize.w / viewDef.bedWidthFt
 
-  // Circle radius = half a plant's mature width in px, capped so it fits in the polygon
-  const polyHeightPx = poly ? (polyBounds(poly).maxY - polyBounds(poly).minY) : 999
-  const maxR = polyHeightPx * 0.42  // radius can be at most 42% of polygon height
+  const polyHeightPx = poly ? (polyBounds(poly).maxY - polyBounds(poly).minY) : 60
+  const maxR = polyHeightPx * 0.44
 
   function getRadius(sizeFt) {
     return Math.min(maxR, Math.max(8, (sizeFt * pxPerFoot) / 2))
   }
 
-  function handleStageClick(e) {
-    if (e.target === e.target.getStage() || e.target.name() === 'bg-image') {
-      const pos = stageRef.current.getPointerPosition()
-      if (drawMode) {
-        // Add polygon point
-        if (poly && poly.length >= 3) {
-          const first = poly[0]
-          if (Math.hypot(pos.x - first.x, pos.y - first.y) < 15) {
-            // Close polygon — it's already set
-            return
-          }
-        }
-        onPolyChange([...(poly || []), { x: pos.x, y: pos.y }])
-      } else if (selectedPlantId) {
-        // Place a plant
-        const plant = plantsData.find(p => p.id === selectedPlantId)
-        if (!plant) return
-        onPlacedChange(prev => [...prev, { id: Date.now(), plantId: selectedPlantId, x: pos.x, y: pos.y, size: plant.matureWidth }])
-      }
-    }
-  }
+  function handleClick(e) {
+    const pos = stageRef.current.getPointerPosition()
+    const targetName = e.target.name()
 
-  function handleDblClick() {
-    if (drawMode && poly && poly.length >= 3) {
-      // Finalize on double-click — poly is already stored, just exit draw mode
-      // parent handles this
+    // Only respond to clicks on the background image or stage itself
+    if (targetName !== 'bg-image' && e.target !== e.target.getStage()) return
+
+    if (drawMode) {
+      // Close polygon if clicking near first point
+      if (poly && poly.length >= 3) {
+        const first = poly[0]
+        if (Math.hypot(pos.x - first.x, pos.y - first.y) < 14) {
+          onPolyChange(poly) // finalized — parent calls finishDraw
+          return
+        }
+      }
+      onPolyChange([...(poly || []), { x: pos.x, y: pos.y }])
+      return
+    }
+
+    if (selectedPlantId) {
+      const plant = plantsData.find(p => p.id === selectedPlantId)
+      if (!plant) return
+      onPlacedChange(prev => [...prev, { id: Date.now(), plantId: selectedPlantId, x: pos.x, y: pos.y, size: plant.matureWidth }])
     }
   }
 
   return (
     <Stage
-      width={stageSize.w}
-      height={stageSize.h}
+      width={stageSize.w} height={stageSize.h}
       ref={stageRef}
-      onClick={handleStageClick}
-      onDblClick={handleDblClick}
-      style={{ cursor: drawMode ? 'crosshair' : selectedPlantId ? 'crosshair' : 'default' }}
+      onClick={handleClick}
+      style={{ cursor: drawMode || selectedPlantId ? 'crosshair' : 'default' }}
     >
       <Layer>
-        {/* Background photo */}
-        <KImage
-          name="bg-image"
-          image={img}
-          x={imgX} y={imgY}
-          width={finalImgW} height={finalImgH}
-          listening={true}
-        />
+        {/* Photo — cropped to bed zone via Konva's native crop prop */}
+        <KImage name="bg-image" {...imgProps} listening={true} />
 
-        {/* ── Placed plants clipped to polygon ── */}
+        {/* Plants — hard-clipped inside the polygon via clipFunc */}
         {poly && poly.length >= 3 && (
           <Group
-            clipFunc={(ctx) => {
-              // This is the magic: everything in this Group is hard-clipped to the polygon.
-              // Nothing can visually appear outside this path, ever.
+            clipFunc={ctx => {
               ctx.beginPath()
               ctx.moveTo(poly[0].x, poly[0].y)
               poly.slice(1).forEach(p => ctx.lineTo(p.x, p.y))
@@ -168,53 +148,29 @@ function BedCanvas({ viewDef, poly, onPolyChange, placed, onPlacedChange, drawMo
               if (!plant) return null
               const r = getRadius(item.size)
               return (
-                <Group
-                  key={item.id}
-                  x={item.x} y={item.y}
-                  draggable
-                  onDragEnd={e => {
-                    onPlacedChange(prev => prev.map(p =>
-                      p.id === item.id ? { ...p, x: e.target.x(), y: e.target.y() } : p
-                    ))
-                  }}
+                <Group key={item.id} x={item.x} y={item.y} draggable
+                  onDragEnd={e => onPlacedChange(prev => prev.map(p =>
+                    p.id === item.id ? { ...p, x: e.target.x(), y: e.target.y() } : p
+                  ))}
                 >
-                  <Circle
-                    radius={r}
-                    fill={plant.color}
-                    stroke="rgba(255,255,255,0.85)"
-                    strokeWidth={2}
-                    shadowBlur={4}
-                    shadowOpacity={0.4}
-                  />
-                  {showLabels && (
+                  <Circle radius={r} fill={plant.color}
+                    stroke="rgba(255,255,255,0.85)" strokeWidth={2}
+                    shadowBlur={4} shadowOpacity={0.4} />
+                  {showLabels && r >= 14 && (
                     <Text
-                      text={plant.commonName.split(' ').slice(0,2).join(' ')}
-                      fontSize={Math.max(7, r * 0.45)}
-                      fill="white"
-                      fontStyle="bold"
-                      align="center"
-                      width={r * 2}
-                      offsetX={r}
-                      offsetY={r * 0.25}
+                      text={plant.commonName.split(' ').slice(0, 2).join(' ')}
+                      fontSize={Math.max(7, Math.min(11, r * 0.42))}
+                      fill="white" fontStyle="bold" align="center"
+                      width={r * 2} offsetX={r} offsetY={r * 0.22}
                     />
                   )}
-                  {/* Remove button */}
-                  <Circle
-                    x={r * 0.7} y={-r * 0.7}
-                    radius={7}
+                  <Circle x={r * 0.65} y={-r * 0.65} radius={7}
                     fill="rgba(0,0,0,0.7)"
-                    onClick={e => {
-                      e.cancelBubble = true
-                      onPlacedChange(prev => prev.filter(p => p.id !== item.id))
-                    }}
+                    onClick={e => { e.cancelBubble = true; onPlacedChange(prev => prev.filter(p => p.id !== item.id)) }}
                   />
-                  <Text
-                    x={r * 0.7 - 4} y={-r * 0.7 - 5}
-                    text="✕" fontSize={8} fill="white"
-                    onClick={e => {
-                      e.cancelBubble = true
-                      onPlacedChange(prev => prev.filter(p => p.id !== item.id))
-                    }}
+                  <Text x={r * 0.65 - 3.5} y={-r * 0.65 - 4.5} text="✕"
+                    fontSize={8} fill="white"
+                    onClick={e => { e.cancelBubble = true; onPlacedChange(prev => prev.filter(p => p.id !== item.id)) }}
                   />
                 </Group>
               )
@@ -222,29 +178,19 @@ function BedCanvas({ viewDef, poly, onPolyChange, placed, onPlacedChange, drawMo
           </Group>
         )}
 
-        {/* ── Bed polygon outline ── */}
+        {/* Polygon outline */}
         {poly && poly.length >= 2 && (
-          <Line
-            points={flatPoly(poly)}
-            closed={poly.length >= 3}
-            fill="rgba(100,200,80,0.08)"
-            stroke="rgba(60,180,40,0.9)"
-            strokeWidth={2}
-            dash={[8, 4]}
-            listening={false}
-          />
+          <Line points={poly.flatMap(p => [p.x, p.y])} closed={poly.length >= 3}
+            fill="rgba(100,200,80,0.08)" stroke="rgba(50,170,30,0.9)"
+            strokeWidth={2.5} dash={[8, 4]} listening={false} />
         )}
 
-        {/* ── In-progress draw points ── */}
+        {/* Draw-mode corner dots */}
         {drawMode && poly && poly.map((pt, i) => (
-          <Circle
-            key={i}
-            x={pt.x} y={pt.y}
+          <Circle key={i} x={pt.x} y={pt.y}
             radius={i === 0 ? 9 : 5}
-            fill={i === 0 ? 'rgba(255,130,0,0.95)' : 'rgba(255,200,50,0.9)'}
-            stroke="white" strokeWidth={2}
-            listening={false}
-          />
+            fill={i === 0 ? 'rgba(255,120,0,0.95)' : 'rgba(255,200,50,0.9)'}
+            stroke="white" strokeWidth={2} listening={false} />
         ))}
       </Layer>
     </Stage>
@@ -253,40 +199,36 @@ function BedCanvas({ viewDef, poly, onPolyChange, placed, onPlacedChange, drawMo
 
 // ─── Main App ─────────────────────────────────────────────────────────────────
 export default function App() {
-  const [activeView, setActiveView]     = useState('bedA')
-  const [polygons, setPolygons]         = useState(loadPolygons)
-  const [drawMode, setDrawMode]         = useState(false)
-  const [placed, setPlaced]             = useState([])
+  const [activeView, setActiveView]           = useState('bedA')
+  const [polygons, setPolygons]               = useState(loadPolygons)
+  const [drawMode, setDrawMode]               = useState(false)
+  const [placed, setPlaced]                   = useState([])
   const [selectedPlantId, setSelectedPlantId] = useState(null)
-  const [activeDetail, setActiveDetail] = useState(null)
-  const [showLabels, setShowLabels]     = useState(true)
-  const [stageSize, setStageSize]       = useState({ w: 800, h: 500 })
+  const [activeDetail, setActiveDetail]       = useState(null)
+  const [showLabels, setShowLabels]           = useState(true)
+  const [stageSize, setStageSize]             = useState({ w: 800, h: 500 })
   const containerRef = useRef(null)
 
   const viewDef     = BED_VIEWS.find(v => v.key === activeView) ?? BED_VIEWS[0]
   const currentPoly = polygons[activeView] ?? null
 
-  // Measure container
   useEffect(() => {
     if (!containerRef.current) return
-    const obs = new ResizeObserver(([e]) => {
-      setStageSize({ w: e.contentRect.width, h: e.contentRect.height })
-    })
+    const obs = new ResizeObserver(([e]) => setStageSize({ w: e.contentRect.width, h: e.contentRect.height }))
     obs.observe(containerRef.current)
     return () => obs.disconnect()
   }, [])
 
-  // Rebuild layout when polygon or view changes
   useEffect(() => {
-    if (currentPoly && stageSize.w > 0) {
-      setPlaced(buildLayout(currentPoly, viewDef, stageSize.w, stageSize.h))
+    if (currentPoly && currentPoly.length >= 3 && stageSize.w > 0) {
+      setPlaced(buildLayout(currentPoly, viewDef))
     } else if (!currentPoly) {
       setPlaced([])
     }
   }, [activeView, polygons, stageSize.w])
 
-  function handlePolyChange(newPts) {
-    const updated = { ...polygons, [activeView]: newPts }
+  function handlePolyChange(pts) {
+    const updated = { ...polygons, [activeView]: pts }
     setPolygons(updated)
     savePolygons(updated)
   }
@@ -294,14 +236,12 @@ export default function App() {
   function finishDraw() {
     setDrawMode(false)
     setSelectedPlantId(null)
-    // Rebuild layout with finalized polygon
     if (currentPoly && currentPoly.length >= 3) {
-      setPlaced(buildLayout(currentPoly, viewDef, stageSize.w, stageSize.h))
+      setPlaced(buildLayout(currentPoly, viewDef))
     }
   }
 
   function startDraw() {
-    // Clear existing polygon for this view
     const updated = { ...polygons }
     delete updated[activeView]
     setPolygons(updated)
@@ -317,18 +257,16 @@ export default function App() {
     setSelectedPlantId(null)
   }
 
-  const btn = (active, warn) => ({
+  const btn = (on, warn) => ({
     padding: '5px 12px', borderRadius: 6, fontSize: 12, fontWeight: 500, cursor: 'pointer',
-    border: `1px solid ${active ? (warn ? '#e06030' : '#88b040') : '#c8c0a8'}`,
-    background: active ? (warn ? '#ffe0d0' : '#d8eeb8') : '#fff',
-    color: active ? (warn ? '#7a2010' : '#2a4010') : '#3a4a28',
+    border: `1px solid ${on ? (warn ? '#e06030' : '#88b040') : '#c8c0a8'}`,
+    background: on ? (warn ? '#ffe0d0' : '#d8eeb8') : '#fff',
+    color: on ? (warn ? '#7a2010' : '#2a4010') : '#3a4a28',
   })
-
-  const viewBtn = (active) => ({
+  const vBtn = (on) => ({
     padding: '5px 12px', borderRadius: 6, fontSize: 12, fontWeight: 500, cursor: 'pointer',
-    border: `1px solid ${active ? '#5577cc' : '#c8c0a8'}`,
-    background: active ? '#dde8ff' : '#fff',
-    color: active ? '#1a2a6a' : '#3a4a28',
+    border: `1px solid ${on ? '#5577cc' : '#c8c0a8'}`,
+    background: on ? '#dde8ff' : '#fff', color: on ? '#1a2a6a' : '#3a4a28',
   })
 
   return (
@@ -348,7 +286,7 @@ export default function App() {
               <div style={{ width: 44, height: 44, borderRadius: '50%', flexShrink: 0, overflow: 'hidden', border: '2px solid rgba(0,0,0,0.08)', background: p.color }}
                 dangerouslySetInnerHTML={{ __html: p.svgIcon }} />
               <div>
-                <div style={{ fontSize: 12, fontWeight: 600, color: '#2a3818', lineHeight: 1.3 }}>{p.commonName}</div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#2a3818' }}>{p.commonName}</div>
                 <div style={{ fontSize: 10, color: '#8a9a68', fontStyle: 'italic' }}>{p.botanicalName}</div>
                 <div style={{ fontSize: 10, color: '#aab888' }}>{p.matureWidth}′w × {p.matureHeight}′h · {p.type}</div>
               </div>
@@ -360,56 +298,43 @@ export default function App() {
 
       {/* Main */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
-        {/* Toolbar */}
         <div style={{ display: 'flex', gap: 8, padding: '10px 16px', background: '#fff', borderBottom: '1px solid #ddd8cc', alignItems: 'center', flexShrink: 0, flexWrap: 'wrap' }}>
-          {BED_VIEWS.map(v => (
-            <button key={v.key} style={viewBtn(activeView === v.key)} onClick={() => switchView(v.key)}>{v.label}</button>
-          ))}
+          {BED_VIEWS.map(v => <button key={v.key} style={vBtn(activeView === v.key)} onClick={() => switchView(v.key)}>{v.label}</button>)}
           <div style={{ width: 1, height: 22, background: '#e0dbd0', margin: '0 2px' }} />
-          {!drawMode ? (
-            <button style={btn(false)} onClick={startDraw}>
-              ✏️ {currentPoly ? 'Redraw Bed' : 'Define Bed'}
-            </button>
-          ) : (
-            <button style={btn(true, true)} onClick={finishDraw}>
-              ✓ Done drawing
-            </button>
-          )}
+          {!drawMode
+            ? <button style={btn(false)} onClick={startDraw}>✏️ {currentPoly ? 'Redraw Bed' : 'Define Bed'}</button>
+            : <button style={btn(true, true)} onClick={finishDraw}>✓ Done drawing</button>
+          }
           {currentPoly && !drawMode && (
             <button style={btn(false)} onClick={() => {
-              const updated = { ...polygons }; delete updated[activeView]
-              setPolygons(updated); savePolygons(updated); setPlaced([])
+              const u = { ...polygons }; delete u[activeView]; setPolygons(u); savePolygons(u); setPlaced([])
             }}>Clear bed</button>
           )}
           <div style={{ width: 1, height: 22, background: '#e0dbd0', margin: '0 2px' }} />
           <button style={btn(showLabels)} onClick={() => setShowLabels(v => !v)}>Labels {showLabels ? 'ON' : 'OFF'}</button>
           {selectedPlantId && !drawMode && <button style={btn(false)} onClick={() => setSelectedPlantId(null)}>✕ Cancel</button>}
           {currentPoly && !drawMode && (
-            <button style={btn(false)} onClick={() => setPlaced(buildLayout(currentPoly, viewDef, stageSize.w, stageSize.h))}>Reset layout</button>
+            <button style={btn(false)} onClick={() => setPlaced(buildLayout(currentPoly, viewDef))}>Reset layout</button>
           )}
           <span style={{ fontSize: 11, color: drawMode ? '#c05010' : '#aab888', marginLeft: 'auto', fontWeight: drawMode ? 600 : 400 }}>
             {drawMode
-              ? (currentPoly?.length ?? 0) === 0 ? '🖊 Click corners of the bed — click ✓ Done or first point to finish'
-                : `${currentPoly.length} corners — click ✓ Done drawing when finished`
+              ? (currentPoly?.length ?? 0) === 0
+                ? '🖊 Click each corner of the bed outline — click ✓ Done when finished'
+                : `${currentPoly.length} corners placed — click ✓ Done drawing when finished`
               : selectedPlantId ? `Click photo to place ${plantsData.find(p => p.id === selectedPlantId)?.commonName}`
-              : currentPoly ? 'Drag plants to reposition · ✕ to remove'
-              : '← Click Define Bed to trace the bed outline on the photo'}
+              : currentPoly ? 'Drag plants · ✕ to remove · select plant to add more'
+              : '← Click Define Bed and trace the bed outline on the photo'}
           </span>
         </div>
 
-        {/* Canvas */}
         <div ref={containerRef} style={{ flex: 1, overflow: 'hidden' }}>
           {stageSize.w > 0 && (
             <BedCanvas
-              viewDef={viewDef}
-              poly={currentPoly}
+              viewDef={viewDef} poly={currentPoly}
               onPolyChange={handlePolyChange}
-              placed={placed}
-              onPlacedChange={setPlaced}
-              drawMode={drawMode}
-              selectedPlantId={selectedPlantId}
-              showLabels={showLabels}
-              stageSize={stageSize}
+              placed={placed} onPlacedChange={setPlaced}
+              drawMode={drawMode} selectedPlantId={selectedPlantId}
+              showLabels={showLabels} stageSize={stageSize}
             />
           )}
         </div>
