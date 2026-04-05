@@ -1,18 +1,13 @@
-import { useState, useEffect, useRef } from 'react'
-import { Stage, Layer, Image as KImage, Line, Circle, Group, Text } from 'react-konva'
-import useImage from 'use-image'
-import plantsData from './data/plants'
+import { useState, useRef, useEffect } from 'react'
+import plants from './data/plants'
 import PlantDetail from './PlantDetail'
-
-const PHOTO_W = 952
-const PHOTO_H = 1288
 
 const BED_VIEWS = [
   {
     key: 'bedA',
     label: 'Bed A — Home Front',
     url: 'https://sg4c4d4k3ddwfv8d.public.blob.vercel-storage.com/bedA.jpeg',
-    cropTop: 0.30, cropBot: 0.52,
+    cropCenter: '35%',
     bedWidthFt: 30,
     backRow:  ['cherry-bomb-ninebark','incrediball-hydrangea','karl-foerster-grass','little-lime-hydrangea','karl-foerster-grass'],
     frontRow: ['walker-low-catmint','rozanne-geranium','walker-low-catmint','black-eyed-susan','rozanne-geranium','walker-low-catmint','autumn-fire-sedum'],
@@ -21,7 +16,7 @@ const BED_VIEWS = [
     key: 'bedB',
     label: 'Bed B — Garage Front',
     url: 'https://sg4c4d4k3ddwfv8d.public.blob.vercel-storage.com/bedB.jpeg',
-    cropTop: 0.35, cropBot: 0.60,
+    cropCenter: '47%',
     bedWidthFt: 30,
     backRow:  ['karl-foerster-grass','black-eyed-susan','black-eyed-susan','black-eyed-susan','karl-foerster-grass'],
     frontRow: ['walker-low-catmint','prairie-dropseed','rozanne-geranium','autumn-fire-sedum'],
@@ -30,7 +25,7 @@ const BED_VIEWS = [
     key: 'whole',
     label: 'Whole Home',
     url: 'https://sg4c4d4k3ddwfv8d.public.blob.vercel-storage.com/whole-home.jpeg',
-    cropTop: 0.0, cropBot: 1.0,
+    cropCenter: '50%',
     bedWidthFt: 60,
     backRow: [], frontRow: [],
   },
@@ -42,220 +37,96 @@ function evenSpread(n, lo, hi) {
   return Array.from({ length: n }, (_, i) => lo + (i / (n - 1)) * (hi - lo))
 }
 
-function polyBounds(pts) {
-  const xs = pts.map(p => p.x), ys = pts.map(p => p.y)
-  return { minX: Math.min(...xs), maxX: Math.max(...xs), minY: Math.min(...ys), maxY: Math.max(...ys) }
-}
-
-function buildLayout(poly, viewDef) {
-  if (!poly || poly.length < 3) return []
-  const { minX, maxX, minY, maxY } = polyBounds(poly)
-  const xPad = (maxX - minX) * 0.04
-  const backY  = minY + (maxY - minY) * 0.28
-  const frontY = minY + (maxY - minY) * 0.72
-  const backXs  = evenSpread(viewDef.backRow.length,  minX + xPad, maxX - xPad)
-  const frontXs = evenSpread(viewDef.frontRow.length, minX + xPad, maxX - xPad)
-  let id = Date.now()
+let _id = 1
+function buildLayout(bedLeft, bedRight, backY, frontY, viewDef) {
+  const pad = (bedRight - bedLeft) * 0.03
+  const backXs  = evenSpread(viewDef.backRow.length,  bedLeft + pad, bedRight - pad)
+  const frontXs = evenSpread(viewDef.frontRow.length, bedLeft + pad, bedRight - pad)
   return [
-    ...viewDef.backRow.map((plantId, i)  => ({ id: id++, plantId, x: backXs[i],  y: backY,  size: plantsData.find(p => p.id === plantId)?.matureWidth ?? 3 })),
-    ...viewDef.frontRow.map((plantId, i) => ({ id: id++, plantId, x: frontXs[i], y: frontY, size: plantsData.find(p => p.id === plantId)?.matureWidth ?? 3 })),
+    ...viewDef.backRow.map((plantId, i)  => ({ id: _id++, plantId, x: backXs[i],  y: backY,  size: plants.find(p => p.id === plantId)?.matureWidth ?? 3 })),
+    ...viewDef.frontRow.map((plantId, i) => ({ id: _id++, plantId, x: frontXs[i], y: frontY, size: plants.find(p => p.id === plantId)?.matureWidth ?? 3 })),
   ]
 }
 
-const STORAGE_KEY = 'gardenPolygons_v4'
-function loadPolygons() { try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') } catch { return {} } }
-function savePolygons(p) { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(p)) } catch {} }
-
-// ─── BedCanvas ───────────────────────────────────────────────────────────────
-function BedCanvas({ viewDef, poly, onPolyChange, placed, onPlacedChange, drawMode, selectedPlantId, showLabels, stageSize }) {
-  const [img] = useImage(viewDef.url, 'anonymous')
-  const stageRef = useRef(null)
-
-  // Use Konva's crop to show exactly the cropTop..cropBot slice of the source photo,
-  // stretched to fill the full stage. This is clean, correct, and uses Konva natively.
-  const srcCropY = viewDef.cropTop * PHOTO_H
-  const srcCropH = (viewDef.cropBot - viewDef.cropTop) * PHOTO_H
-  const imgProps = {
-    image: img,
-    x: 0, y: 0,
-    width: stageSize.w,
-    height: stageSize.h,
-    crop: { x: 0, y: srcCropY, width: PHOTO_W, height: srcCropH },
-  }
-
-  // Scale: the cropped photo region spans the full stage width = bedWidthFt feet
-  const pxPerFoot = poly
-    ? (polyBounds(poly).maxX - polyBounds(poly).minX) / viewDef.bedWidthFt
-    : stageSize.w / viewDef.bedWidthFt
-
-  const polyHeightPx = poly ? (polyBounds(poly).maxY - polyBounds(poly).minY) : 60
-  const maxR = polyHeightPx * 0.44
-
-  function getRadius(sizeFt) {
-    return Math.min(maxR, Math.max(8, (sizeFt * pxPerFoot) / 2))
-  }
-
-  function handleClick(e) {
-    const pos = stageRef.current.getPointerPosition()
-    const targetName = e.target.name()
-
-    // Only respond to clicks on the background image or stage itself
-    if (targetName !== 'bg-image' && e.target !== e.target.getStage()) return
-
-    if (drawMode) {
-      // Close polygon if clicking near first point
-      if (poly && poly.length >= 3) {
-        const first = poly[0]
-        if (Math.hypot(pos.x - first.x, pos.y - first.y) < 14) {
-          onPolyChange(poly) // finalized — parent calls finishDraw
-          return
-        }
-      }
-      onPolyChange([...(poly || []), { x: pos.x, y: pos.y }])
-      return
-    }
-
-    if (selectedPlantId) {
-      const plant = plantsData.find(p => p.id === selectedPlantId)
-      if (!plant) return
-      onPlacedChange(prev => [...prev, { id: Date.now(), plantId: selectedPlantId, x: pos.x, y: pos.y, size: plant.matureWidth }])
-    }
-  }
-
-  return (
-    <Stage
-      width={stageSize.w} height={stageSize.h}
-      ref={stageRef}
-      onClick={handleClick}
-      style={{ cursor: drawMode || selectedPlantId ? 'crosshair' : 'default' }}
-    >
-      <Layer>
-        {/* Photo — cropped to bed zone via Konva's native crop prop */}
-        <KImage name="bg-image" {...imgProps} listening={true} />
-
-        {/* Plants — hard-clipped inside the polygon via clipFunc */}
-        {poly && poly.length >= 3 && (
-          <Group
-            clipFunc={ctx => {
-              ctx.beginPath()
-              ctx.moveTo(poly[0].x, poly[0].y)
-              poly.slice(1).forEach(p => ctx.lineTo(p.x, p.y))
-              ctx.closePath()
-            }}
-          >
-            {placed.map(item => {
-              const plant = plantsData.find(p => p.id === item.plantId)
-              if (!plant) return null
-              const r = getRadius(item.size)
-              return (
-                <Group key={item.id} x={item.x} y={item.y} draggable
-                  onDragEnd={e => onPlacedChange(prev => prev.map(p =>
-                    p.id === item.id ? { ...p, x: e.target.x(), y: e.target.y() } : p
-                  ))}
-                >
-                  <Circle radius={r} fill={plant.color}
-                    stroke="rgba(255,255,255,0.85)" strokeWidth={2}
-                    shadowBlur={4} shadowOpacity={0.4} />
-                  {showLabels && r >= 14 && (
-                    <Text
-                      text={plant.commonName.split(' ').slice(0, 2).join(' ')}
-                      fontSize={Math.max(7, Math.min(11, r * 0.42))}
-                      fill="white" fontStyle="bold" align="center"
-                      width={r * 2} offsetX={r} offsetY={r * 0.22}
-                    />
-                  )}
-                  <Circle x={r * 0.65} y={-r * 0.65} radius={7}
-                    fill="rgba(0,0,0,0.7)"
-                    onClick={e => { e.cancelBubble = true; onPlacedChange(prev => prev.filter(p => p.id !== item.id)) }}
-                  />
-                  <Text x={r * 0.65 - 3.5} y={-r * 0.65 - 4.5} text="✕"
-                    fontSize={8} fill="white"
-                    onClick={e => { e.cancelBubble = true; onPlacedChange(prev => prev.filter(p => p.id !== item.id)) }}
-                  />
-                </Group>
-              )
-            })}
-          </Group>
-        )}
-
-        {/* Polygon outline */}
-        {poly && poly.length >= 2 && (
-          <Line points={poly.flatMap(p => [p.x, p.y])} closed={poly.length >= 3}
-            fill="rgba(100,200,80,0.08)" stroke="rgba(50,170,30,0.9)"
-            strokeWidth={2.5} dash={[8, 4]} listening={false} />
-        )}
-
-        {/* Draw-mode corner dots */}
-        {drawMode && poly && poly.map((pt, i) => (
-          <Circle key={i} x={pt.x} y={pt.y}
-            radius={i === 0 ? 9 : 5}
-            fill={i === 0 ? 'rgba(255,120,0,0.95)' : 'rgba(255,200,50,0.9)'}
-            stroke="white" strokeWidth={2} listening={false} />
-        ))}
-      </Layer>
-    </Stage>
-  )
+// Default calibrated layouts — y values from real clicks on the actual bed
+const DEFAULT_LAYOUTS = {
+  bedA: (w, h) => buildLayout(0.22 * w, 0.97 * w, 0.449 * h, 0.479 * h, BED_VIEWS[0]),
+  bedB: (w, h) => buildLayout(0.04 * w, 0.94 * w, 0.44 * h,  0.57 * h,  BED_VIEWS[1]),
 }
 
-// ─── Main App ─────────────────────────────────────────────────────────────────
 export default function App() {
   const [activeView, setActiveView]           = useState('bedA')
-  const [polygons, setPolygons]               = useState(loadPolygons)
-  const [drawMode, setDrawMode]               = useState(false)
   const [placed, setPlaced]                   = useState([])
-  const [selectedPlantId, setSelectedPlantId] = useState(null)
+  const [selected, setSelected]               = useState(null)
   const [activeDetail, setActiveDetail]       = useState(null)
   const [showLabels, setShowLabels]           = useState(true)
-  const [stageSize, setStageSize]             = useState({ w: 800, h: 500 })
-  const containerRef = useRef(null)
+  const [overlaySize, setOverlaySize]         = useState({ w: 0, h: 0 })
+  const overlayRef = useRef(null)
+  const dragRef    = useRef(null)
 
-  const viewDef     = BED_VIEWS.find(v => v.key === activeView) ?? BED_VIEWS[0]
-  const currentPoly = polygons[activeView] ?? null
+  const viewDef = BED_VIEWS.find(v => v.key === activeView) ?? BED_VIEWS[0]
 
   useEffect(() => {
-    if (!containerRef.current) return
-    const obs = new ResizeObserver(([e]) => setStageSize({ w: e.contentRect.width, h: e.contentRect.height }))
-    obs.observe(containerRef.current)
+    if (!overlayRef.current) return
+    const obs = new ResizeObserver(entries => {
+      const { width, height } = entries[0].contentRect
+      setOverlaySize({ w: width, h: height })
+    })
+    obs.observe(overlayRef.current)
     return () => obs.disconnect()
   }, [])
 
+  // When overlay is measured and view changes, build default layout
   useEffect(() => {
-    if (currentPoly && currentPoly.length >= 3 && stageSize.w > 0) {
-      setPlaced(buildLayout(currentPoly, viewDef))
-    } else if (!currentPoly) {
+    if (overlaySize.w > 0 && DEFAULT_LAYOUTS[activeView]) {
+      setPlaced(DEFAULT_LAYOUTS[activeView](overlaySize.w, overlaySize.h))
+    } else if (!DEFAULT_LAYOUTS[activeView]) {
       setPlaced([])
     }
-  }, [activeView, polygons, stageSize.w])
-
-  function handlePolyChange(pts) {
-    const updated = { ...polygons, [activeView]: pts }
-    setPolygons(updated)
-    savePolygons(updated)
-  }
-
-  function finishDraw() {
-    setDrawMode(false)
-    setSelectedPlantId(null)
-    if (currentPoly && currentPoly.length >= 3) {
-      setPlaced(buildLayout(currentPoly, viewDef))
-    }
-  }
-
-  function startDraw() {
-    const updated = { ...polygons }
-    delete updated[activeView]
-    setPolygons(updated)
-    savePolygons(updated)
-    setPlaced([])
-    setDrawMode(true)
-    setSelectedPlantId(null)
-  }
+  }, [activeView, overlaySize.w])
 
   function switchView(key) {
     setActiveView(key)
-    setDrawMode(false)
-    setSelectedPlantId(null)
+    setSelected(null)
   }
+
+  function handleOverlayClick(e) {
+    if (!selected || !overlayRef.current) return
+    if (dragRef.current?.didDrag) { dragRef.current.didDrag = false; return }
+    const rect = overlayRef.current.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const y = e.clientY - rect.top
+    const plant = plants.find(p => p.id === selected)
+    if (!plant) return
+    setPlaced(prev => [...prev, { id: _id++, plantId: selected, x, y, size: plant.matureWidth }])
+  }
+
+  function startDrag(e, itemId) {
+    e.stopPropagation()
+    dragRef.current = { id: itemId, startX: e.clientX, startY: e.clientY, didDrag: false }
+    function onMove(me) {
+      const dx = me.clientX - dragRef.current.startX
+      const dy = me.clientY - dragRef.current.startY
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) dragRef.current.didDrag = true
+      setPlaced(prev => prev.map(item => {
+        if (item.id !== dragRef.current.id) return item
+        dragRef.current.startX = me.clientX
+        dragRef.current.startY = me.clientY
+        return { ...item, x: item.x + dx, y: item.y + dy }
+      }))
+    }
+    function onUp() {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
+
+  // Scale: plant circle diameter = matureWidth / bedWidthFt * overlayWidth * 0.22
+  const pxPerFoot = overlaySize.w > 0
+    ? (overlaySize.w / viewDef.bedWidthFt) * 0.22
+    : 10
 
   const btn = (on, warn) => ({
     padding: '5px 12px', borderRadius: 6, fontSize: 12, fontWeight: 500, cursor: 'pointer',
@@ -278,10 +149,10 @@ export default function App() {
           <div style={{ fontSize: 11, color: '#8a9870' }}>Arlington Heights, IL · Zone 6a/6b</div>
         </div>
         <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
-          {plantsData.map(p => (
+          {plants.map(p => (
             <div key={p.id}
-              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', cursor: 'pointer', background: selectedPlantId === p.id ? '#edf5e0' : 'transparent', borderLeft: `3px solid ${selectedPlantId === p.id ? '#6a9030' : 'transparent'}` }}
-              onClick={() => { if (drawMode) return; setSelectedPlantId(prev => prev === p.id ? null : p.id); setActiveDetail(p) }}
+              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', cursor: 'pointer', background: selected === p.id ? '#edf5e0' : 'transparent', borderLeft: `3px solid ${selected === p.id ? '#6a9030' : 'transparent'}` }}
+              onClick={() => { setSelected(prev => prev === p.id ? null : p.id); setActiveDetail(p) }}
             >
               <div style={{ width: 44, height: 44, borderRadius: '50%', flexShrink: 0, overflow: 'hidden', border: '2px solid rgba(0,0,0,0.08)', background: p.color }}
                 dangerouslySetInnerHTML={{ __html: p.svgIcon }} />
@@ -301,42 +172,59 @@ export default function App() {
         <div style={{ display: 'flex', gap: 8, padding: '10px 16px', background: '#fff', borderBottom: '1px solid #ddd8cc', alignItems: 'center', flexShrink: 0, flexWrap: 'wrap' }}>
           {BED_VIEWS.map(v => <button key={v.key} style={vBtn(activeView === v.key)} onClick={() => switchView(v.key)}>{v.label}</button>)}
           <div style={{ width: 1, height: 22, background: '#e0dbd0', margin: '0 2px' }} />
-          {!drawMode
-            ? <button style={btn(false)} onClick={startDraw}>✏️ {currentPoly ? 'Redraw Bed' : 'Define Bed'}</button>
-            : <button style={btn(true, true)} onClick={finishDraw}>✓ Done drawing</button>
-          }
-          {currentPoly && !drawMode && (
-            <button style={btn(false)} onClick={() => {
-              const u = { ...polygons }; delete u[activeView]; setPolygons(u); savePolygons(u); setPlaced([])
-            }}>Clear bed</button>
-          )}
-          <div style={{ width: 1, height: 22, background: '#e0dbd0', margin: '0 2px' }} />
           <button style={btn(showLabels)} onClick={() => setShowLabels(v => !v)}>Labels {showLabels ? 'ON' : 'OFF'}</button>
-          {selectedPlantId && !drawMode && <button style={btn(false)} onClick={() => setSelectedPlantId(null)}>✕ Cancel</button>}
-          {currentPoly && !drawMode && (
-            <button style={btn(false)} onClick={() => setPlaced(buildLayout(currentPoly, viewDef))}>Reset layout</button>
+          {selected && <button style={btn(false)} onClick={() => setSelected(null)}>✕ Cancel placing</button>}
+          {placed.length > 0 && (
+            <button style={btn(false)} onClick={() => {
+              if (overlaySize.w > 0 && DEFAULT_LAYOUTS[activeView]) {
+                setPlaced(DEFAULT_LAYOUTS[activeView](overlaySize.w, overlaySize.h))
+              } else setPlaced([])
+            }}>Reset layout</button>
           )}
-          <span style={{ fontSize: 11, color: drawMode ? '#c05010' : '#aab888', marginLeft: 'auto', fontWeight: drawMode ? 600 : 400 }}>
-            {drawMode
-              ? (currentPoly?.length ?? 0) === 0
-                ? '🖊 Click each corner of the bed outline — click ✓ Done when finished'
-                : `${currentPoly.length} corners placed — click ✓ Done drawing when finished`
-              : selectedPlantId ? `Click photo to place ${plantsData.find(p => p.id === selectedPlantId)?.commonName}`
-              : currentPoly ? 'Drag plants · ✕ to remove · select plant to add more'
-              : '← Click Define Bed and trace the bed outline on the photo'}
+          <span style={{ fontSize: 11, color: '#aab888', marginLeft: 'auto' }}>
+            {selected
+              ? `Click photo to place ${plants.find(p => p.id === selected)?.commonName}`
+              : 'Select a plant · drag to reposition · ✕ to remove'}
           </span>
         </div>
 
-        <div ref={containerRef} style={{ flex: 1, overflow: 'hidden' }}>
-          {stageSize.w > 0 && (
-            <BedCanvas
-              viewDef={viewDef} poly={currentPoly}
-              onPolyChange={handlePolyChange}
-              placed={placed} onPlacedChange={setPlaced}
-              drawMode={drawMode} selectedPlantId={selectedPlantId}
-              showLabels={showLabels} stageSize={stageSize}
+        <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+          <div
+            ref={overlayRef}
+            onClick={handleOverlayClick}
+            style={{ position: 'relative', width: '100%', height: '100%', cursor: selected ? 'crosshair' : 'default', overflow: 'hidden' }}
+          >
+            <img
+              src={viewDef.url}
+              alt="Bed reference"
+              style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: `center ${viewDef.cropCenter}`, display: 'block', userSelect: 'none' }}
+              draggable={false}
             />
-          )}
+            <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+              {placed.map(item => {
+                const plant = plants.find(p => p.id === item.plantId)
+                if (!plant) return null
+                const sizePx = Math.min(55, Math.max(14, Math.round(item.size * pxPerFoot)))
+                return (
+                  <div key={item.id} style={{ position: 'absolute', left: item.x, top: item.y, width: sizePx, height: sizePx, transform: 'translate(-50%,-50%)', pointerEvents: 'auto', cursor: 'grab', userSelect: 'none' }}
+                    onMouseDown={e => startDrag(e, item.id)}>
+                    <div style={{ width: '100%', height: '100%', borderRadius: '50%', overflow: 'hidden', border: '2px solid rgba(255,255,255,0.9)', boxShadow: '0 2px 6px rgba(0,0,0,0.5)', background: plant.color }}
+                      dangerouslySetInnerHTML={{ __html: plant.svgIcon }} />
+                    <button
+                      onMouseDown={e => e.stopPropagation()}
+                      onClick={e => { e.stopPropagation(); setPlaced(prev => prev.filter(i => i.id !== item.id)) }}
+                      style={{ position: 'absolute', top: 0, right: 0, width: 14, height: 14, borderRadius: '50%', background: 'rgba(0,0,0,0.65)', border: 'none', color: '#fff', fontSize: 8, lineHeight: '14px', textAlign: 'center', cursor: 'pointer', padding: 0 }}
+                    >✕</button>
+                    {showLabels && (
+                      <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: 2, background: 'rgba(255,255,255,0.92)', borderRadius: 3, padding: '1px 4px', fontSize: 8, fontWeight: 600, color: '#1e3408', whiteSpace: 'nowrap', boxShadow: '0 1px 3px rgba(0,0,0,0.25)' }}>
+                        {plant.commonName.split(' ').slice(0, 2).join(' ')}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
         </div>
       </div>
     </div>
