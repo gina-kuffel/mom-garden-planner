@@ -30,8 +30,6 @@ function evenSpread(n, lo, hi) {
 
 let _id = 1
 
-// All positions stored as normalized 0-1 fractions of (renderedW, renderedH)
-// so they survive resize. We only convert to pixels at render time.
 function buildLayoutNorm(poly, viewDef) {
   if (!poly || poly.length < 3) return []
   const xs = poly.map(p => p.x), ys = poly.map(p => p.y)
@@ -39,18 +37,9 @@ function buildLayoutNorm(poly, viewDef) {
   const minY = Math.min(...ys), maxY = Math.max(...ys)
   const polyW = maxX - minX
   const polyH = maxY - minY
-
-  const totalRows = 2
-  // Divide the bed height into equal row bands
-  const bandH = polyH / totalRows
-  // Place back row at 25% from top of band 0, front row at 75% from top (= 25% into band 1)
-  const backY  = minY + bandH * 0.25
-  const frontY = minY + bandH * 0.75 + bandH  // = minY + bandH * 1.75... wait
-  // Simpler: back row at 25% of polyH from top, front row at 75% of polyH from top
   const backYn  = minY + polyH * 0.22
   const frontYn = minY + polyH * 0.78
   const xPad = polyW * 0.03
-
   return [
     ...viewDef.backRow.map((plantId, i) => {
       const xs = evenSpread(viewDef.backRow.length, minX + xPad, maxX - xPad)
@@ -63,9 +52,21 @@ function buildLayoutNorm(poly, viewDef) {
   ]
 }
 
+// G Unit badge — matches Daily Command Center exactly
+const GBadge = ({ size = 32 }) => (
+  <div style={{
+    width: `${size}px`, height: `${size}px`, borderRadius: '50%', flexShrink: 0,
+    background: 'linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    boxShadow: '0 0 0 2px rgba(255,255,255,0.25), 0 2px 8px rgba(0,0,0,0.2)',
+  }}>
+    <span style={{ color: '#fff', fontWeight: 700, fontSize: size >= 48 ? '22px' : size >= 32 ? '15px' : '11px', fontFamily: "'DM Sans', sans-serif", lineHeight: 1 }}>G</span>
+  </div>
+)
+
 export default function Planner({ onRetrace }) {
   const [activeView, setActiveView]     = useState('bedA')
-  const [placed, setPlaced]             = useState([])   // items have {id, plantId, nx, ny} normalized
+  const [placed, setPlaced]             = useState([])
   const [selected, setSelected]         = useState(null)
   const [activeDetail, setActiveDetail] = useState(null)
   const [showLabels, setShowLabels]     = useState(true)
@@ -84,7 +85,6 @@ export default function Planner({ onRetrace }) {
   const renderedW = ctnSize.w
   const renderedH = imgLoaded && renderedW > 0 ? Math.round(renderedW * imgSize.h / imgSize.w) : 0
 
-  // Convert normalized position to pixels
   const toX = (nx) => nx * renderedW
   const toY = (ny) => ny * renderedH
 
@@ -100,7 +100,6 @@ export default function Planner({ onRetrace }) {
     setPlaced([])
   }, [activeView])
 
-  // Build layout once image is loaded and we have real dimensions
   useEffect(() => {
     if (imgLoaded && renderedW > 0 && renderedH > 0 && poly) {
       setPlaced(buildLayoutNorm(poly, viewDef))
@@ -134,11 +133,7 @@ export default function Planner({ onRetrace }) {
       dragRef.current.startY = me.clientY
       setPlaced(prev => prev.map(item => {
         if (item.id !== dragRef.current.id) return item
-        return {
-          ...item,
-          nx: item.nx + dx / renderedW,
-          ny: item.ny + dy / renderedH,
-        }
+        return { ...item, nx: item.nx + dx / renderedW, ny: item.ny + dy / renderedH }
       }))
     }
     function onUp() { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp) }
@@ -146,7 +141,6 @@ export default function Planner({ onRetrace }) {
     window.addEventListener('mouseup', onUp)
   }
 
-  // Plant circle radius: scale with bed width in pixels
   const bedWidthPx = poly && renderedW > 0
     ? (() => { const xs = poly.map(p => p.x); return (Math.max(...xs) - Math.min(...xs)) * renderedW })()
     : renderedW
@@ -154,7 +148,6 @@ export default function Planner({ onRetrace }) {
     ? (() => { const ys = poly.map(p => p.y); return (Math.max(...ys) - Math.min(...ys)) * renderedH })()
     : renderedH * 0.15
 
-  // Max radius = fit into the smaller of (bed height / 2) or (bed width / numPlants / 2)
   const totalPlants = viewDef.backRow.length + viewDef.frontRow.length
   const maxRFromH = bedHeightPx / 2 * 0.9
   const maxRFromW = bedWidthPx / totalPlants / 2 * 0.85
@@ -162,28 +155,49 @@ export default function Planner({ onRetrace }) {
 
   const toSVGPt = (p) => `${p.x * renderedW},${p.y * renderedH}`
 
-  const btn  = (on) => ({ padding: '5px 12px', borderRadius: 6, fontSize: 12, fontWeight: 500, cursor: 'pointer', border: `1px solid ${on ? '#88b040' : '#c8c0a8'}`, background: on ? '#d8eeb8' : '#fff', color: on ? '#2a4010' : '#3a4a28' })
-  const vBtn = (on) => ({ padding: '5px 12px', borderRadius: 6, fontSize: 12, fontWeight: 500, cursor: 'pointer', border: `1px solid ${on ? '#5577cc' : '#c8c0a8'}`, background: on ? '#dde8ff' : '#fff', color: on ? '#1a2a6a' : '#3a4a28' })
+  // G Unit button styles
+  const bedBtn = (on) => ({
+    padding: '8px 14px', borderRadius: '7px', fontSize: '12px', fontWeight: 600, cursor: 'pointer', border: 'none', transition: 'all 0.15s',
+    background: on ? '#fff' : 'transparent',
+    color: on ? '#0f172a' : '#94a3b8',
+  })
+  const toolBtn = (on) => ({
+    padding: '5px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+    border: `1px solid ${on ? '#6366f1' : 'rgba(71,85,105,0.5)'}`,
+    background: on ? 'rgba(99,102,241,0.15)' : 'transparent',
+    color: on ? '#a5b4fc' : '#94a3b8',
+  })
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: '#f2efe8' }}>
+    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', fontFamily: "'DM Sans', 'Segoe UI', system-ui, sans-serif", background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)' }}>
+      <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Serif+Display&display=swap" rel="stylesheet" />
+
       {/* Sidebar */}
-      <div style={{ width: 280, flexShrink: 0, background: '#fff', borderRight: '1px solid #ddd8cc', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <div style={{ padding: '16px 16px 12px', borderBottom: '1px solid #ece8e0' }}>
-          <div style={{ fontSize: 17, fontWeight: 600, color: '#2a3a18', marginBottom: 2 }}>Mom's Garden Planner</div>
-          <div style={{ fontSize: 11, color: '#8a9870' }}>Arlington Heights, IL · Zone 6a/6b</div>
+      <div style={{ width: 280, flexShrink: 0, background: 'rgba(15,23,42,0.95)', borderRight: '1px solid rgba(71,85,105,0.4)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        {/* Sidebar header — G Badge + title */}
+        <div style={{ padding: '16px 16px 14px', borderBottom: '1px solid rgba(71,85,105,0.4)', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <GBadge size={36} />
+          <div>
+            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 15, fontWeight: 700, color: '#fff', lineHeight: 1.1 }}>Mom's Garden</div>
+            <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 2 }}>Arlington Heights · Zone 6a/6b</div>
+          </div>
         </div>
+        {/* Plant list */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
           {plants.map(p => (
             <div key={p.id}
-              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', cursor: 'pointer', background: selected === p.id ? '#edf5e0' : 'transparent', borderLeft: `3px solid ${selected === p.id ? '#6a9030' : 'transparent'}` }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', cursor: 'pointer',
+                background: selected === p.id ? 'rgba(99,102,241,0.15)' : 'transparent',
+                borderLeft: `3px solid ${selected === p.id ? '#6366f1' : 'transparent'}`,
+              }}
               onClick={() => { setSelected(prev => prev === p.id ? null : p.id); setActiveDetail(p) }}>
-              <div style={{ width: 44, height: 44, borderRadius: '50%', flexShrink: 0, overflow: 'hidden', border: '2px solid rgba(0,0,0,0.08)', background: p.color }}
+              <div style={{ width: 44, height: 44, borderRadius: '50%', flexShrink: 0, overflow: 'hidden', border: '2px solid rgba(255,255,255,0.12)', background: p.color }}
                 dangerouslySetInnerHTML={{ __html: p.svgIcon }} />
               <div>
-                <div style={{ fontSize: 12, fontWeight: 600, color: '#2a3818' }}>{p.commonName}</div>
-                <div style={{ fontSize: 10, color: '#8a9a68', fontStyle: 'italic' }}>{p.botanicalName}</div>
-                <div style={{ fontSize: 10, color: '#aab888' }}>{p.matureWidth}′w × {p.matureHeight}′h · {p.type}</div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#e2e8f0' }}>{p.commonName}</div>
+                <div style={{ fontSize: 10, color: '#64748b', fontStyle: 'italic' }}>{p.botanicalName}</div>
+                <div style={{ fontSize: 10, color: '#475569' }}>{p.matureWidth}′w × {p.matureHeight}′h · {p.type}</div>
               </div>
             </div>
           ))}
@@ -191,22 +205,44 @@ export default function Planner({ onRetrace }) {
         {activeDetail && <PlantDetail plant={activeDetail} onClose={() => setActiveDetail(null)} />}
       </div>
 
-      {/* Main */}
+      {/* Main content */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
-        <div style={{ display: 'flex', gap: 8, padding: '10px 16px', background: '#fff', borderBottom: '1px solid #ddd8cc', alignItems: 'center', flexShrink: 0, flexWrap: 'wrap' }}>
-          {BED_VIEWS.map(v => <button key={v.key} style={vBtn(activeView === v.key)} onClick={() => { setActiveView(v.key); setSelected(null) }}>{v.label}</button>)}
-          <div style={{ width: 1, height: 22, background: '#e0dbd0', margin: '0 2px' }} />
-          <button style={btn(showLabels)} onClick={() => setShowLabels(v => !v)}>Labels {showLabels ? 'ON' : 'OFF'}</button>
-          <button style={btn(showDebug)} onClick={() => setShowDebug(v => !v)}>Debug</button>
-          {selected && <button style={btn(false)} onClick={() => setSelected(null)}>✕ Cancel</button>}
-          {poly && <button style={btn(false)} onClick={() => setPlaced(buildLayoutNorm(poly, viewDef))}>Reset layout</button>}
-          <button style={{ ...btn(false), marginLeft: 'auto', fontSize: 11, color: '#8a7a60' }} onClick={onRetrace}>✏️ Retrace beds</button>
-          <span style={{ fontSize: 11, color: '#aab888' }}>
+
+        {/* G Unit header banner */}
+        <div style={{ position: 'relative', overflow: 'hidden', backgroundImage: 'url(https://images.unsplash.com/photo-1416879595882-3373a0480b5b?q=80&w=2070&auto=format&fit=crop)', backgroundSize: 'cover', backgroundPosition: 'center 40%', flexShrink: 0 }}>
+          <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to right, rgba(15,23,42,0.92) 0%, rgba(88,28,135,0.75) 50%, rgba(49,46,129,0.88) 100%)' }} />
+          <div style={{ position: 'relative', zIndex: 1, padding: '20px 24px 16px', display: 'flex', alignItems: 'flex-end', gap: 14 }}>
+            <div style={{ width: 52, height: 52, borderRadius: '50%', flexShrink: 0, background: 'linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '3px solid rgba(255,255,255,0.2)', boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }}>
+              <span style={{ color: '#fff', fontSize: 26, fontWeight: 700, fontFamily: "'DM Sans', sans-serif", lineHeight: 1 }}>G</span>
+            </div>
+            <div>
+              <h1 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 28, fontWeight: 300, color: '#fff', margin: 0, lineHeight: 1.2 }}><strong style={{ fontWeight: 700 }}>Unit</strong> Garden Planner</h1>
+              <p style={{ margin: 0, fontFamily: "'DM Sans', sans-serif", fontSize: 12, fontWeight: 400, color: '#bfdbfe', letterSpacing: '0.05em' }}>Mom's Foundation Beds · Arlington Heights, IL</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Toolbar */}
+        <div style={{ display: 'flex', gap: 8, padding: '10px 16px', background: 'rgba(15,23,42,0.8)', borderBottom: '1px solid rgba(71,85,105,0.4)', alignItems: 'center', flexShrink: 0, flexWrap: 'wrap' }}>
+          {/* Bed view switcher — pill style matching DCC nav */}
+          <div style={{ display: 'flex', gap: 2, background: 'rgba(30,41,59,0.7)', borderRadius: 9, padding: 3, border: '1px solid rgba(71,85,105,0.4)' }}>
+            {BED_VIEWS.map(v => (
+              <button key={v.key} style={bedBtn(activeView === v.key)} onClick={() => { setActiveView(v.key); setSelected(null) }}>{v.label}</button>
+            ))}
+          </div>
+          <div style={{ width: 1, height: 22, background: 'rgba(71,85,105,0.5)', margin: '0 2px' }} />
+          <button style={toolBtn(showLabels)} onClick={() => setShowLabels(v => !v)}>Labels {showLabels ? 'ON' : 'OFF'}</button>
+          <button style={toolBtn(showDebug)} onClick={() => setShowDebug(v => !v)}>Debug</button>
+          {selected && <button style={{ ...toolBtn(false), color: '#f87171', borderColor: 'rgba(248,113,113,0.4)' }} onClick={() => setSelected(null)}>✕ Cancel</button>}
+          {poly && <button style={toolBtn(false)} onClick={() => setPlaced(buildLayoutNorm(poly, viewDef))}>Reset layout</button>}
+          <button style={{ ...toolBtn(false), marginLeft: 'auto', fontSize: 11 }} onClick={onRetrace}>✏️ Retrace beds</button>
+          <span style={{ fontSize: 11, color: '#64748b' }}>
             {!poly ? '⚠ No outline — click Retrace beds' : selected ? `Click photo to place ${plants.find(p => p.id === selected)?.commonName}` : 'Select plant · drag · ✕ to remove'}
           </span>
         </div>
 
-        <div ref={ctnRef} style={{ flex: 1, overflow: 'auto', position: 'relative' }}>
+        {/* Photo + plant overlay area */}
+        <div ref={ctnRef} style={{ flex: 1, overflow: 'auto', position: 'relative', background: 'rgba(15,23,42,0.6)' }}>
           {renderedW > 0 && (
             <div style={{ position: 'relative', width: renderedW, height: renderedH || 'auto' }}>
               <img
@@ -219,9 +255,9 @@ export default function Planner({ onRetrace }) {
                 draggable={false}
               />
 
-              {/* Debug overlay: shows computed pixel positions */}
+              {/* Debug overlay */}
               {showDebug && renderedH > 0 && (
-                <div style={{ position: 'absolute', top: 4, left: 4, background: 'rgba(0,0,0,0.75)', color: '#fff', fontSize: 10, padding: '4px 8px', borderRadius: 4, zIndex: 100, pointerEvents: 'none', lineHeight: 1.6 }}>
+                <div style={{ position: 'absolute', top: 4, left: 4, background: 'rgba(0,0,0,0.8)', color: '#a5f3fc', fontSize: 10, padding: '4px 8px', borderRadius: 4, zIndex: 100, pointerEvents: 'none', lineHeight: 1.6, fontFamily: 'monospace' }}>
                   imgSize: {imgSize.w}×{imgSize.h}<br/>
                   rendered: {renderedW}×{renderedH}<br/>
                   imgLoaded: {String(imgLoaded)}<br/>
@@ -250,7 +286,6 @@ export default function Planner({ onRetrace }) {
                     stroke="rgba(60,160,40,0.9)"
                     strokeWidth="2.5" strokeDasharray="6,3"
                   />
-                  {/* Debug: show row lines */}
                   {showDebug && poly && (() => {
                     const ys = poly.map(p => p.y)
                     const xs = poly.map(p => p.x)
@@ -279,13 +314,13 @@ export default function Planner({ onRetrace }) {
                   return (
                     <div key={item.id} style={{ position: 'absolute', left: px, top: py, width: sz, height: sz, transform: 'translate(-50%,-50%)', pointerEvents: 'auto', cursor: 'grab', userSelect: 'none' }}
                       onMouseDown={e => startDrag(e, item.id)}>
-                      <div style={{ width: '100%', height: '100%', borderRadius: '50%', overflow: 'hidden', border: '2px solid rgba(255,255,255,0.9)', boxShadow: '0 2px 6px rgba(0,0,0,0.5)', background: plant.color }}
+                      <div style={{ width: '100%', height: '100%', borderRadius: '50%', overflow: 'hidden', border: '2px solid rgba(255,255,255,0.9)', boxShadow: '0 2px 8px rgba(0,0,0,0.5)', background: plant.color }}
                         dangerouslySetInnerHTML={{ __html: plant.svgIcon }} />
                       <button onMouseDown={e => e.stopPropagation()}
                         onClick={e => { e.stopPropagation(); setPlaced(prev => prev.filter(i => i.id !== item.id)) }}
-                        style={{ position: 'absolute', top: 0, right: 0, width: 14, height: 14, borderRadius: '50%', background: 'rgba(0,0,0,0.65)', border: 'none', color: '#fff', fontSize: 8, lineHeight: '14px', textAlign: 'center', cursor: 'pointer', padding: 0, pointerEvents: 'auto' }}>✕</button>
+                        style={{ position: 'absolute', top: 0, right: 0, width: 14, height: 14, borderRadius: '50%', background: 'rgba(239,68,68,0.85)', border: 'none', color: '#fff', fontSize: 8, lineHeight: '14px', textAlign: 'center', cursor: 'pointer', padding: 0, pointerEvents: 'auto' }}>✕</button>
                       {showLabels && (
-                        <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: 2, background: 'rgba(255,255,255,0.92)', borderRadius: 3, padding: '1px 4px', fontSize: 8, fontWeight: 600, color: '#1e3408', whiteSpace: 'nowrap', boxShadow: '0 1px 3px rgba(0,0,0,0.25)' }}>
+                        <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: 2, background: 'rgba(15,23,42,0.88)', borderRadius: 3, padding: '1px 5px', fontSize: 8, fontWeight: 600, color: '#e2e8f0', whiteSpace: 'nowrap', boxShadow: '0 1px 4px rgba(0,0,0,0.4)' }}>
                           {plant.commonName.split(' ').slice(0, 2).join(' ')}
                         </div>
                       )}
